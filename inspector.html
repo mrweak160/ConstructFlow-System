@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="theme-color" content="#f59e0b"/>
+<link rel="manifest" href="manifest.json"/>
+<title>ConstructFlow — Inspector Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css"/>
+</head>
+<body data-page="inspector">
+<div class="toast-container" id="toasts"></div>
+
+<div id="inspector" class="screen active">
+  <div class="dash">
+    <div class="sidebar-overlay" onclick="closeSidebar()"></div>
+    <aside class="sidebar">
+      <div class="sidebar-logo"><div class="logo-badge">CF</div><div class="logo-name">CONSTRUCTFLOW</div></div>
+      <div class="sidebar-user">
+        <div class="avatar av-amber" id="insp-av">M</div>
+        <div class="user-info"><div class="uname" id="insp-uname">Mike Inspector</div><div class="urole">Inspector</div></div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-label">Main Menu</div>
+        <div class="nav-item active" id="insp-nav-dash" onclick="switchView('inspector','dashboard')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard
+        </div>
+        <div class="nav-item" id="insp-nav-rep" onclick="switchView('inspector','reports')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Reports &amp; Monitoring
+        </div>
+      </nav>
+      <div class="sidebar-signout"><button class="btn-signout" onclick="doSignout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sign Out</button></div>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <div class="topbar-left">
+          <button class="hamburger" onclick="toggleSidebar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+          <span class="topbar-title">Inspector Portal</span>
+        </div>
+        <div class="topbar-user" onclick="openModal('modal-profile')">
+          <div><div class="uname" id="insp-topname">Mike Inspector</div><div class="uemail">inspector@constructflow.com</div></div>
+          <div class="avatar av-amber" id="insp-topav">M</div>
+        </div>
+      </div>
+      <div class="content">
+        <!-- DASHBOARD -->
+        <div class="view active" id="insp-dashboard">
+          <div class="page-header">
+            <div><h1>Field Inspection</h1><p>Log site issues and track reported observations.</p></div>
+          </div>
+
+          <div class="section-header"><h3>My Assigned Tasks</h3></div>
+          <div id="insp-task-list"><div class="empty-state"><p>Loading your assigned tasks...</p></div></div>
+          <div class="stats-grid">
+            <div class="stat-card"><div class="stat-label">My Reports Today</div><div class="stat-value" id="insp-stat-today">0</div></div>
+            <div class="stat-card"><div class="stat-label">Critical Flagged</div><div class="stat-value red" id="insp-stat-crit">0</div></div>
+            <div class="stat-card"><div class="stat-label">Pending Review</div><div class="stat-value amber" id="insp-stat-pend">0</div></div>
+            <div class="stat-card"><div class="stat-label">Resolved</div><div class="stat-value green" id="insp-stat-res">0</div></div>
+          </div>
+          <div class="section-header">
+            <div class="section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>My Recent Reports</div>
+          </div>
+          <div class="table-wrap">
+            <table><thead><tr><th>ID</th><th>Issue</th><th>Location</th><th>Severity</th><th>Submitted</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="insp-dash-table"><tr><td colspan="7"><div class="empty-state"><p>No reports yet. Submit your first inspection report.</p></div></td></tr></tbody></table>
+          </div>
+          <div class="mobile-card-list" id="insp-dash-cards"></div>
+        </div>
+        <!-- REPORTS VIEW -->
+        <div class="view" id="insp-reports">
+          <div class="page-header"><div><h1>Reports &amp; Monitoring</h1><p>All submitted inspection reports and their current status.</p></div></div>
+          <div class="reports-filter">
+            <button class="filter-btn active" onclick="filterReports(this,'all')">All</button>
+            <button class="filter-btn" onclick="filterReports(this,'critical')">Critical</button>
+            <button class="filter-btn" onclick="filterReports(this,'high')">High</button>
+            <button class="filter-btn" onclick="filterReports(this,'moderate')">Moderate</button>
+            <button class="filter-btn" onclick="filterReports(this,'low')">Low</button>
+          </div>
+          <div class="table-wrap">
+            <table><thead><tr><th>ID</th><th>Issue</th><th>Location</th><th>Severity</th><th>Submitted</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="insp-rep-table"></tbody></table>
+          </div>
+          <div class="mobile-card-list" id="insp-rep-cards"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ══════════ MODALS ══════════ -->
+
+<!-- Submit Inspection Report -->
+<div class="overlay" id="modal-submit">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div><h2>Submit Inspection Report</h2><p>Log a new site issue with location and photo evidence.</p></div>
+      <button class="btn-close" onclick="closeModal('modal-submit')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label>Issue Title <span>*</span></label><input class="form-control" id="s-title" placeholder="e.g. Cracked Foundation – Sector B"/></div>
+      <div class="form-group"><label>Issue Type <span>*</span></label>
+        <select class="form-control" id="s-type">
+          <option value="">Select type...</option>
+          <option>Structural Damage</option><option>Electrical Hazard</option><option>Scaffolding Issue</option>
+          <option>Water Damage</option><option>Safety Violation</option><option>Equipment Failure</option><option>Other</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Description <span>*</span></label><textarea class="form-control" id="s-desc" placeholder="Describe the issue in detail..."></textarea></div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Location / Site Area <span>*</span></label>
+          <div class="gps-row">
+            <input class="form-control" id="s-loc" placeholder="e.g. Building 4, Sector B"/>
+            <button class="btn btn-dark btn-sm" onclick="detectGPS()" style="white-space:nowrap">📍 GPS</button>
+          </div>
+          <div class="form-hint" id="s-gps-status"></div>
+        </div>
+        <div class="form-group"><label>Severity Classification <span>*</span></label>
+          <select class="form-control" id="s-sev">
+            <option value="">Select severity...</option>
+            <option value="low">Low – Minor issue, minimal impact</option>
+            <option value="moderate">Moderate – Needs attention, not urgent</option>
+            <option value="high">High – Serious, affects operations/safety</option>
+            <option value="critical">Critical – Immediate action required</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label>Photo Evidence</label>
+        <div class="photo-upload" id="photo-drop">
+          <input type="file" id="s-photo" accept="image/*" multiple onchange="handlePhotos(this)"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <p>Tap to upload photos</p>
+        </div>
+        <div class="photo-preview" id="photo-preview"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-submit')">Cancel</button>
+      <button class="btn btn-amber" onclick="submitReport()">Submit Report</button>
+    </div>
+  </div>
+</div>
+
+<!-- View Report Detail -->
+<div class="overlay" id="modal-report-detail">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2 id="rd-title">Report Detail</h2><p id="rd-id">REP-000</p></div>
+      <button class="btn-close" onclick="closeModal('modal-report-detail')">×</button>
+    </div>
+    <div class="modal-body" id="rd-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-report-detail')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Profile Modal -->
+<div class="overlay" id="modal-profile">
+  <div class="modal modal-sm">
+    <div class="modal-header"><div><h2>My Profile</h2></div><button class="btn-close" onclick="closeModal('modal-profile')">×</button></div>
+    <div class="modal-body">
+      <div style="text-align:center;margin-bottom:20px">
+        <div class="avatar" id="prof-av" style="width:64px;height:64px;font-size:24px;margin:0 auto 12px"></div>
+        <div style="font-size:16px;font-weight:700;color:var(--text)" id="prof-name"></div>
+        <div style="font-size:12px;color:var(--muted)" id="prof-role"></div>
+      </div>
+      <div class="form-group"><label>Full Name</label><input class="form-control" id="prof-name-inp"/></div>
+      <div class="form-group"><label>Email</label><input class="form-control" id="prof-email-inp" disabled/></div>
+      <div class="form-group"><label>Current Password</label><input class="form-control" type="password" id="prof-curpass" placeholder="Required only if changing password"/></div>
+      <div class="form-group"><label>New Password</label><input class="form-control" type="password" id="prof-pass" placeholder="Leave blank to keep current"/></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-dark" onclick="closeModal('modal-profile')">Cancel</button><button class="btn btn-amber" onclick="saveProfile()">Save Changes</button></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<div class="lightbox-overlay" id="lightbox-overlay" onclick="if(event.target===this) closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">×</button>
+  <div class="lightbox-counter" id="lightbox-counter"></div>
+  <button class="lightbox-arrow prev" id="lightbox-prev" onclick="lightboxNav(-1)">‹</button>
+  <div class="lightbox-track" id="lightbox-track"></div>
+  <button class="lightbox-arrow next" id="lightbox-next" onclick="lightboxNav(1)">›</button>
+</div>
+
+</body>
+</html>

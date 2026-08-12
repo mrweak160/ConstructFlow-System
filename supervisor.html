@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="theme-color" content="#f59e0b"/>
+<link rel="manifest" href="manifest.json"/>
+<title>ConstructFlow — Supervisor Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css"/>
+</head>
+<body data-page="supervisor">
+<div class="toast-container" id="toasts"></div>
+
+<div id="supervisor" class="screen active">
+  <div class="dash">
+    <div class="sidebar-overlay" onclick="closeSidebar()"></div>
+    <aside class="sidebar">
+      <div class="sidebar-logo"><div class="logo-badge">CF</div><div class="logo-name">CONSTRUCTFLOW</div></div>
+      <div class="sidebar-user">
+        <div class="avatar av-blue" id="sup-av">J</div>
+        <div class="user-info"><div class="uname" id="sup-uname">John Supervisor</div><div class="urole">Supervisor</div></div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-label">Main Menu</div>
+        <div class="nav-item active" id="sup-nav-dash" onclick="switchView('supervisor','dashboard')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard
+        </div>
+        <div class="nav-item" id="sup-nav-rep" onclick="switchView('supervisor','reports')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Reports &amp; Monitoring
+        </div>
+        <div class="nav-item" id="sup-nav-wo" onclick="switchView('supervisor','workorders')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Work Orders
+        </div>
+        <div class="nav-item" id="sup-nav-tasks" onclick="switchView('supervisor','tasks')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Inspection Tasks
+        </div>
+      </nav>
+      <div class="sidebar-signout"><button class="btn-signout" onclick="doSignout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sign Out</button></div>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <div class="topbar-left">
+          <button class="hamburger" onclick="toggleSidebar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+          <span class="topbar-title">Supervisor Portal</span>
+        </div>
+        <div class="topbar-user" onclick="openModal('modal-profile')">
+          <div><div class="uname" id="sup-topname">John Supervisor</div><div class="uemail">supervisor@constructflow.com</div></div>
+          <div class="avatar av-blue" id="sup-topav">J</div>
+        </div>
+      </div>
+      <div class="content">
+        <!-- DASHBOARD -->
+        <div class="view active" id="sup-dashboard">
+          <div class="page-header"><div><h1>Coordination Hub</h1><p>Review incoming reports and coordinate work order assignments.</p></div></div>
+          <div class="stats-grid">
+            <div class="stat-card"><div class="stat-label">Total Reports</div><div class="stat-value" id="sup-stat-total">0</div></div>
+            <div class="stat-card"><div class="stat-label">Pending Review</div><div class="stat-value amber" id="sup-stat-pend">0</div></div>
+            <div class="stat-card"><div class="stat-label">Active Work Orders</div><div class="stat-value blue" id="sup-stat-wo">0</div></div>
+            <div class="stat-card"><div class="stat-label">High / Critical</div><div class="stat-value red" id="sup-stat-crit">0</div></div>
+          </div>
+          <div class="two-col">
+            <div>
+              <div class="section-header"><div class="section-title">Pending Inspection Review</div><button class="btn btn-sm btn-dark" onclick="switchView('supervisor','reports')">View All</button></div>
+              <div id="sup-pending-list"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><p>No pending reports</p></div></div>
+            </div>
+            <div>
+              <div class="widget">
+                <div class="widget-header"><div class="widget-title">Work Order Status</div></div>
+                <div class="wo-list">
+                  <div class="wo-row"><span><span class="dot dot-amber" style="display:inline-block;margin-right:7px"></span>Assigned</span><span class="count" id="sup-wo-assigned">0</span></div>
+                  <div class="wo-row"><span><span class="dot dot-blue" style="display:inline-block;margin-right:7px"></span>In Progress</span><span class="count" id="sup-wo-inprog">0</span></div>
+                  <div class="wo-row"><span><span class="dot dot-green" style="display:inline-block;margin-right:7px"></span>Completed</span><span class="count" id="sup-wo-done">0</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- REPORTS VIEW -->
+        <div class="view" id="sup-reports">
+          <div class="page-header"><div><h1>Inspection Reports</h1><p>Review and classify all submitted inspection reports.</p></div></div>
+          <div class="reports-filter">
+            <button class="filter-btn active" onclick="filterSupervisorReports(this,'all')">All</button>
+            <button class="filter-btn" onclick="filterSupervisorReports(this,'pending')">Pending</button>
+            <button class="filter-btn" onclick="filterSupervisorReports(this,'assigned')">Assigned</button>
+            <button class="filter-btn" onclick="filterSupervisorReports(this,'completed')">Completed</button>
+          </div>
+          <div class="table-wrap">
+            <table><thead><tr><th>ID</th><th>Issue</th><th>Inspector</th><th>Severity</th><th>Submitted</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="sup-rep-table"></tbody></table>
+          </div>
+          <div class="mobile-card-list" id="sup-rep-cards"></div>
+        </div>
+        <!-- WORK ORDERS VIEW -->
+        <div class="view" id="sup-workorders">
+          <div class="page-header"><div><h1>Work Orders</h1><p>All generated work orders and their progress.</p></div></div>
+          <div class="table-wrap">
+            <table><thead><tr><th>WO #</th><th>Issue</th><th>Assigned To</th><th>Priority</th><th>Created</th><th>Status</th><th>Action</th></tr></thead>
+            <tbody id="sup-wo-table"></tbody></table>
+          </div>
+          <div class="mobile-card-list" id="sup-wo-cards"></div>
+        </div>
+        <!-- TASK VIEW -->
+          <div class="view" id="sup-tasks">
+          <div class="view-header">
+            <div><h2>Inspection Tasks</h2><p>Create and assign inspection tasks to Field Inspectors.</p></div>
+            <button class="btn btn-amber" onclick="openCreateTask()">+ Create Task</button>
+          </div>
+          <table class="data-table">
+            <thead><tr><th>Code</th><th>Title</th><th>Inspector</th><th>Location</th><th>Status</th><th>Due</th><th>Action</th></tr></thead>
+            <tbody id="sup-tasks-table"></tbody>
+          </table>
+          <div class="mobile-card-list" id="sup-tasks-cards"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ══════════ MODALS ══════════ -->
+
+<!-- Create Task -->
+<div class="overlay" id="modal-create-task">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2>Create Inspection Task</h2><p>Assign a new inspection to a Field Inspector.</p></div>
+      <button class="btn-close" onclick="closeModal('modal-create-task')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group"><label>Assign To <span>*</span></label>
+        <select class="form-control" id="ct-inspector"><option value="">Select field inspector...</option></select>
+      </div>
+      <div class="form-group"><label>Task Title <span>*</span></label><input class="form-control" id="ct-title" placeholder="e.g. Weekly Structural Check – Sector B"/></div>
+      <div class="form-group"><label>Description</label><textarea class="form-control" id="ct-desc" placeholder="Optional instructions for the inspector..."></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label>Location <span>*</span></label><input class="form-control" id="ct-loc" placeholder="e.g. Building 4, Sector B"/></div>
+        <div class="form-group"><label>Due Date</label><input type="date" class="form-control" id="ct-due"/></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-create-task')">Cancel</button>
+      <button class="btn btn-amber" onclick="createTask()">Create & Assign Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- View Report Detail -->
+<div class="overlay" id="modal-report-detail">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2 id="rd-title">Report Detail</h2><p id="rd-id">REP-000</p></div>
+      <button class="btn-close" onclick="closeModal('modal-report-detail')">×</button>
+    </div>
+    <div class="modal-body" id="rd-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-report-detail')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Assign Work Order (Supervisor) -->
+<div class="overlay" id="modal-assign">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2>Assign Work Order</h2><p>Create and assign a work order for this inspection report.</p></div>
+      <button class="btn-close" onclick="closeModal('modal-assign')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="a-report-id"/>
+      <div class="form-group"><label>Report</label><input class="form-control" id="a-report-title" disabled/></div>
+      <div class="form-group"><label>Issue Location</label><input class="form-control" id="a-loc" disabled/></div>
+      <div class="form-group"><label>Severity</label><input class="form-control" id="a-sev" disabled/></div>
+      <div class="form-group"><label>Override Severity</label>
+        <select class="form-control" id="a-sev-override">
+          <option value="">Keep original severity</option>
+          <option value="low">Low</option><option value="moderate">Moderate</option>
+          <option value="high">High</option><option value="critical">Critical</option>
+        </select>
+        <div class="form-hint">Supervisors may reclassify severity based on field verification.</div>
+      </div>
+      <div class="form-group"><label>Assign To (Field Worker) <span style="color:var(--red)">*</span></label>
+        <select class="form-control" id="a-worker">
+          <option value="">Select field worker...</option>
+          <option value="Dave Mechanic">Dave Mechanic</option>
+          <option value="Jose Reyes">Jose Reyes</option>
+          <option value="Maria Santos">Maria Santos</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Work Instructions</label><textarea class="form-control" id="a-instructions" placeholder="Describe the work to be done..."></textarea></div>
+      <div class="form-group"><label>Priority / Deadline</label><input class="form-control" type="date" id="a-deadline"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-assign')">Cancel</button>
+      <button class="btn btn-amber" onclick="assignWorkOrder()">Create &amp; Assign</button>
+    </div>
+  </div>
+</div>
+
+<!-- Profile Modal -->
+<div class="overlay" id="modal-profile">
+  <div class="modal modal-sm">
+    <div class="modal-header"><div><h2>My Profile</h2></div><button class="btn-close" onclick="closeModal('modal-profile')">×</button></div>
+    <div class="modal-body">
+      <div style="text-align:center;margin-bottom:20px">
+        <div class="avatar" id="prof-av" style="width:64px;height:64px;font-size:24px;margin:0 auto 12px"></div>
+        <div style="font-size:16px;font-weight:700;color:var(--text)" id="prof-name"></div>
+        <div style="font-size:12px;color:var(--muted)" id="prof-role"></div>
+      </div>
+      <div class="form-group"><label>Full Name</label><input class="form-control" id="prof-name-inp"/></div>
+      <div class="form-group"><label>Email</label><input class="form-control" id="prof-email-inp" disabled/></div>
+      <div class="form-group"><label>Current Password</label><input class="form-control" type="password" id="prof-curpass" placeholder="Required only if changing password"/></div>
+      <div class="form-group"><label>New Password</label><input class="form-control" type="password" id="prof-pass" placeholder="Leave blank to keep current"/></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-dark" onclick="closeModal('modal-profile')">Cancel</button><button class="btn btn-amber" onclick="saveProfile()">Save Changes</button></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+
+<div class="lightbox-overlay" id="lightbox-overlay" onclick="if(event.target===this) closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">×</button>
+  <div class="lightbox-counter" id="lightbox-counter"></div>
+  <button class="lightbox-arrow prev" id="lightbox-prev" onclick="lightboxNav(-1)">‹</button>
+  <div class="lightbox-track" id="lightbox-track"></div>
+  <button class="lightbox-arrow next" id="lightbox-next" onclick="lightboxNav(1)">›</button>
+</div>
+
+</body>
+</html>

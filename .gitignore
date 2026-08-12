@@ -1,0 +1,19 @@
+# ConstructFlow — .gitignore
+
+# Environment and config (keep credentials out of GitHub)
+config/db.php
+
+# Uploaded files (photos, exports) — don't commit user data
+uploads/photos/
+uploads/reports/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log

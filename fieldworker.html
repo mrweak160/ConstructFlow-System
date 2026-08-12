@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="theme-color" content="#f59e0b"/>
+<link rel="manifest" href="manifest.json"/>
+<title>ConstructFlow — Field Worker Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css"/>
+</head>
+<body data-page="fieldworker">
+<div class="toast-container" id="toasts"></div>
+
+<div id="fieldworker" class="screen active">
+  <div class="dash">
+    <div class="sidebar-overlay" onclick="closeSidebar()"></div>
+    <aside class="sidebar">
+      <div class="sidebar-logo"><div class="logo-badge">CF</div><div class="logo-name">CONSTRUCTFLOW</div></div>
+      <div class="sidebar-user">
+        <div class="avatar av-green" id="fw-av">D</div>
+        <div class="user-info"><div class="uname" id="fw-uname">Dave Mechanic</div><div class="urole">Field Worker</div></div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-label">Main Menu</div>
+        <div class="nav-item active" id="fw-nav-dash" onclick="switchView('fieldworker','dashboard')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>My Queue
+        </div>
+        <div class="nav-item" id="fw-nav-hist" onclick="switchView('fieldworker','history')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Task History
+        </div>
+      </nav>
+      <div class="sidebar-signout"><button class="btn-signout" onclick="doSignout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sign Out</button></div>
+    </aside>
+    <main class="main">
+      <div class="topbar">
+        <div class="topbar-left">
+          <button class="hamburger" onclick="toggleSidebar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+          <span class="topbar-title">Field Worker Portal</span>
+        </div>
+        <div class="topbar-user" onclick="openModal('modal-profile')">
+          <div><div class="uname" id="fw-topname">Dave Mechanic</div><div class="uemail">fieldworker@constructflow.com</div></div>
+          <div class="avatar av-green" id="fw-topav">D</div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="view active" id="fw-dashboard">
+          <div class="page-header"><div><h1>My Work Queue</h1><p>Active assignments and tasks requiring attention.</p></div></div>
+          <div class="stats-grid">
+            <div class="stat-card"><div class="stat-label">Active Tasks</div><div class="stat-value amber" id="fw-stat-active">0</div></div>
+            <div class="stat-card"><div class="stat-label">In Progress</div><div class="stat-value blue" id="fw-stat-prog">0</div></div>
+            <div class="stat-card"><div class="stat-label">Completed Today</div><div class="stat-value green" id="fw-stat-done">0</div></div>
+            <div class="stat-card"><div class="stat-label">Total Assigned</div><div class="stat-value" id="fw-stat-total">0</div></div>
+          </div>
+          <div class="section-title" style="margin-bottom:14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>My Assignments</div>
+          <div id="fw-queue-list"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><p>No tasks assigned yet</p></div></div>
+        </div>
+        <div class="view" id="fw-history">
+          <div class="page-header"><div><h1>Task History</h1><p>All completed and closed work orders.</p></div></div>
+          <div class="table-wrap">
+            <table><thead><tr><th>WO #</th><th>Issue</th><th>Location</th><th>Priority</th><th>Completed</th><th>Status</th></tr></thead>
+            <tbody id="fw-hist-table"></tbody></table>
+          </div>
+          <div class="mobile-card-list" id="fw-hist-cards"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ══════════ MODALS ══════════ -->
+
+<!-- Update Task Status (Field Worker) -->
+<div class="overlay" id="modal-update-task">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2>Update Task Status</h2><p>Update progress and submit activity report.</p></div>
+      <button class="btn-close" onclick="closeModal('modal-update-task')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="ut-wo-id"/>
+      <div class="form-group"><label>Work Order</label><input class="form-control" id="ut-title" disabled/></div>
+      <div class="form-group"><label>Current Status</label><input class="form-control" id="ut-cur-status" disabled/></div>
+      <div class="form-group"><label>Update Status To <span style="color:var(--red)">*</span></label>
+        <select class="form-control" id="ut-status">
+          <option value="in_progress">In Progress</option>
+          <option value="completed">Completed</option>
+          <option value="on_hold">On Hold</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Activity Report / Remarks <span style="color:var(--red)">*</span></label><textarea class="form-control" id="ut-remarks" placeholder="Describe work done, findings, or reason for delay..."></textarea></div>
+      <div class="form-group"><label>Photo Evidence (optional)</label>
+        <div class="photo-upload"><input type="file" id="ut-photo" accept="image/*" multiple onchange="handlePhotosTask(this)"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><p>Tap to upload photos</p></div>
+        <div class="photo-preview" id="task-photo-preview"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-update-task')">Cancel</button>
+      <button class="btn btn-amber" onclick="updateTaskStatus()">Submit Update</button>
+    </div>
+  </div>
+</div>
+
+<!-- Profile Modal -->
+<div class="overlay" id="modal-profile">
+  <div class="modal modal-sm">
+    <div class="modal-header"><div><h2>My Profile</h2></div><button class="btn-close" onclick="closeModal('modal-profile')">×</button></div>
+    <div class="modal-body">
+      <div style="text-align:center;margin-bottom:20px">
+        <div class="avatar" id="prof-av" style="width:64px;height:64px;font-size:24px;margin:0 auto 12px"></div>
+        <div style="font-size:16px;font-weight:700;color:var(--text)" id="prof-name"></div>
+        <div style="font-size:12px;color:var(--muted)" id="prof-role"></div>
+      </div>
+      <div class="form-group"><label>Full Name</label><input class="form-control" id="prof-name-inp"/></div>
+      <div class="form-group"><label>Email</label><input class="form-control" id="prof-email-inp" disabled/></div>
+      <div class="form-group"><label>Current Password</label><input class="form-control" type="password" id="prof-curpass" placeholder="Required only if changing password"/></div>
+      <div class="form-group"><label>New Password</label><input class="form-control" type="password" id="prof-pass" placeholder="Leave blank to keep current"/></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-dark" onclick="closeModal('modal-profile')">Cancel</button><button class="btn btn-amber" onclick="saveProfile()">Save Changes</button></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
