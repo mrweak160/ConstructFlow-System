@@ -13,8 +13,6 @@ if (!defined('MAIL_FROM_NAME'))define('MAIL_FROM_NAME','ConstructFlow');
 define('APP_ENV', getenv('APP_ENV') ?: 'local');
 
 // ── PUBLIC URL ───────────────────────────────────────────────
-// CHANGE THIS when you deploy. On XAMPP the default is right; on
-// Hostinger it becomes https://yourdomain.com.
 define('APP_URL', rtrim(getenv('APP_URL') ?: 'http://localhost/constructflow', '/'));
 
 define('APP_HTTPS', APP_ENV === 'production');
