@@ -1,27 +1,33 @@
 <?php
 // ConstructFlow — Work Orders API
-// Handles: create, assign, list, update status
+// create · list · detail · update_status · stats
+
 
 require_once __DIR__ . '/../config/helpers.php';
-setCORSHeaders();
 startSecureSession();
 
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 
-// ── POST /api/workorders.php?action=create ────────────────────
-// Supervisor creates a work order from an inspection report.
+// Every POST here is authenticated, so all of them require a token.
+if ($method === 'POST') {
+    verifyCsrf();
+}
+
+// ── POST ?action=create ──────────────────────────────────────
 // Body: { report_id, assigned_to, severity, instructions, deadline }
 if ($method === 'POST' && $action === 'create') {
-    $user = requireRole('supervisor');
-    $body = getBody();
+    $m      = requireTeamRole('supervisor');
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
+    $body   = getBody();
 
-    $reportId    = (int)($body['report_id']    ?? 0);
-    $assignedTo  = (int)($body['assigned_to']  ?? 0);
-    $severity    = in_array($body['severity'] ?? '', ['low','moderate','high','critical'])
-                   ? $body['severity'] : null;
-    $instructions = sanitize($body['instructions'] ?? '');
-    $deadline     = sanitize($body['deadline'] ?? '');
+    $reportId     = (int)($body['report_id']   ?? 0);
+    $assignedTo   = (int)($body['assigned_to'] ?? 0);
+    $severity     = in_array($body['severity'] ?? '', ['low','moderate','high','critical'], true)
+                    ? $body['severity'] : null;
+    $instructions = clean($body['instructions'] ?? '');
+    $deadline     = clean($body['deadline'] ?? '');
 
     if (!$reportId || !$assignedTo || !$severity) {
         json_response(false, 'Report, assigned worker, and severity are required.', [], 400);
@@ -29,48 +35,45 @@ if ($method === 'POST' && $action === 'create') {
 
     $db = getDB();
 
-    // Verify the report exists and is not already assigned
-    $report = $db->prepare('SELECT * FROM InspectionReports WHERE report_id = ?');
-    $report->execute([$reportId]);
-    $r = $report->fetch();
-    if (!$r) {
+    $report = $db->prepare('SELECT * FROM InspectionReports WHERE report_id = ? AND team_id = ?');
+    $report->execute([$reportId, $teamId]);
+    if (!$report->fetch()) {
         json_response(false, 'Inspection report not found.', [], 404);
     }
 
-    // Verify the assigned user is a field worker
-    $worker = $db->prepare('SELECT * FROM Users WHERE user_id = ? AND role = "field_worker" AND is_active = 1');
-    $worker->execute([$assignedTo]);
-    if (!$worker->fetch()) {
-        json_response(false, 'Assigned user is not an active field worker.', [], 400);
+    // The check the original file described but never performed.
+    $dupe = $db->prepare('SELECT wo_code FROM WorkOrders WHERE report_id = ? AND team_id = ? LIMIT 1');
+    $dupe->execute([$reportId, $teamId]);
+    if ($existing = $dupe->fetch()) {
+        json_response(false, "A work order ({$existing['wo_code']}) already exists for this report.", [], 409);
     }
 
-    $code = generateWOCode();
-
-    $stmt = $db->prepare(
-        'INSERT INTO WorkOrders
-         (wo_code, report_id, created_by, assigned_to, severity, instructions, deadline)
-         VALUES (?, ?, ?, ?, ?, ?, ?)'
+    // Assignee must be an active field worker IN THIS TEAM.
+    $worker = $db->prepare(
+        'SELECT 1 FROM TeamMembers tm
+         JOIN Users u ON tm.user_id = u.user_id
+         WHERE tm.team_id = ? AND tm.user_id = ?
+           AND tm.role = "field_worker" AND tm.status = "active" AND u.is_active = 1'
     );
-    $stmt->execute([
-        $code,
-        $reportId,
-        $user['user_id'],
-        $assignedTo,
-        $severity,
-        $instructions,
-        $deadline ?: null,
-    ]);
+    $worker->execute([$teamId, $assignedTo]);
+    if (!$worker->fetch()) {
+        json_response(false, 'That person is not an active field worker in this team.', [], 400);
+    }
+
+    $code = generateWOCode($teamId);
+
+    $db->prepare(
+        'INSERT INTO WorkOrders
+         (team_id, wo_code, report_id, created_by, assigned_to, severity, instructions, deadline)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    )->execute([$teamId, $code, $reportId, $actor['user_id'], $assignedTo, $severity, $instructions, $deadline ?: null]);
     $woId = (int)$db->lastInsertId();
 
-    // Update report status to assigned
-    $db->prepare('UPDATE InspectionReports SET status = "assigned" WHERE report_id = ?')
-       ->execute([$reportId]);
+    $db->prepare('UPDATE InspectionReports SET status = "assigned" WHERE report_id = ? AND team_id = ?')
+       ->execute([$reportId, $teamId]);
 
-    logActivity(
-        $user['user_id'], 'create_work_order',
-        'work_order', $woId,
-        "{$user['name']} created and assigned work order $code."
-    );
+    logActivity($actor['user_id'], 'create_work_order', 'work_order', $woId,
+        "{$actor['name']} created and assigned work order $code.", $teamId);
 
     json_response(true, 'Work order created and assigned successfully.', [
         'wo_id'   => $woId,
@@ -78,36 +81,35 @@ if ($method === 'POST' && $action === 'create') {
     ]);
 }
 
-// ── GET /api/workorders.php?action=list ───────────────────────
-// Returns work orders based on role:
-//   supervisor    → all work orders with filter options
-//   field_worker  → only work orders assigned to them
-//   administrator → all work orders
+// ── GET ?action=list ─────────────────────────────────────────
+// field_worker → only their own work orders
+// supervisor   → all work orders in the team
 if ($method === 'GET' && $action === 'list') {
-    $user   = requireAuth();
+    $m      = requireTeam();
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
     $db     = getDB();
-    $status = $_GET['status'] ?? '';
 
-    $where  = [];
-    $params = [];
+    $where  = ['w.team_id = ?'];
+    $params = [$teamId];
 
-    if ($user['role'] === 'field_worker') {
+    if ($m['role'] === 'field_worker') {
         $where[]  = 'w.assigned_to = ?';
-        $params[] = $user['user_id'];
+        $params[] = $actor['user_id'];
     }
-    if ($status) {
+    if ($status = ($_GET['status'] ?? '')) {
         $where[]  = 'w.status = ?';
         $params[] = $status;
     }
 
-    $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+    $whereSQL = 'WHERE ' . implode(' AND ', $where);
 
     $stmt = $db->prepare(
         "SELECT w.*,
                 r.report_code, r.title AS report_title, r.location_text,
-                u_creator.name  AS created_by_name,
-                u_worker.name   AS assigned_to_name,
-                (SELECT status FROM FieldWorkUpdates WHERE wo_id = w.wo_id ORDER BY updated_at DESC LIMIT 1) AS latest_update_status,
+                u_creator.name AS created_by_name,
+                u_worker.name  AS assigned_to_name,
+                (SELECT status  FROM FieldWorkUpdates WHERE wo_id = w.wo_id ORDER BY updated_at DESC LIMIT 1) AS latest_update_status,
                 (SELECT remarks FROM FieldWorkUpdates WHERE wo_id = w.wo_id ORDER BY updated_at DESC LIMIT 1) AS latest_remarks
          FROM WorkOrders w
          JOIN InspectionReports r ON w.report_id = r.report_id
@@ -121,38 +123,37 @@ if ($method === 'GET' && $action === 'list') {
     json_response(true, 'Work orders retrieved.', ['work_orders' => $stmt->fetchAll()]);
 }
 
-// ── GET /api/workorders.php?action=detail&id=1 ────────────────
-// Returns a single work order with all its field work updates.
+// ── GET ?action=detail&id=1 ──────────────────────────────────
 if ($method === 'GET' && $action === 'detail') {
-    $user = requireAuth();
-    $woId = (int)($_GET['id'] ?? 0);
-    $db   = getDB();
+    $m      = requireTeam();
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
+    $woId   = (int)($_GET['id'] ?? 0);
+    $db     = getDB();
 
     $stmt = $db->prepare(
         'SELECT w.*,
-                r.report_code, r.title AS report_title, r.location_text, r.description AS report_description,
+                r.report_code, r.title AS report_title, r.location_text,
+                r.description AS report_description,
                 u_creator.name AS created_by_name,
                 u_worker.name  AS assigned_to_name
          FROM WorkOrders w
          JOIN InspectionReports r ON w.report_id = r.report_id
          JOIN Users u_creator ON w.created_by = u_creator.user_id
          LEFT JOIN Users u_worker ON w.assigned_to = u_worker.user_id
-         WHERE w.wo_id = ?'
+         WHERE w.wo_id = ? AND w.team_id = ?'
     );
-    $stmt->execute([$woId]);
+    $stmt->execute([$woId, $teamId]);
     $wo = $stmt->fetch();
 
     if (!$wo) {
         json_response(false, 'Work order not found.', [], 404);
     }
-
-    // Field worker can only see their own work orders
-    if ($user['role'] === 'field_worker' && $wo['assigned_to'] !== $user['user_id']) {
+    // Loose != on purpose is a bug source; compare as integers.
+    if ($m['role'] === 'field_worker' && (int)$wo['assigned_to'] !== (int)$actor['user_id']) {
         json_response(false, 'Access denied.', [], 403);
     }
 
-    // Get all field work updates for this WO
-   // Get all field work updates for this WO
     $updates = $db->prepare(
         'SELECT fu.*, u.name AS updated_by_name
          FROM FieldWorkUpdates fu
@@ -163,7 +164,6 @@ if ($method === 'GET' && $action === 'detail') {
     $updates->execute([$woId]);
     $allUpdates = $updates->fetchAll();
 
-    // Attach photos to each update (one-to-many, same pattern as report photos)
     if ($allUpdates) {
         $updateIds    = array_column($allUpdates, 'update_id');
         $placeholders = implode(',', array_fill(0, count($updateIds), '?'));
@@ -186,93 +186,100 @@ if ($method === 'GET' && $action === 'detail') {
     ]);
 }
 
-// ── POST /api/workorders.php?action=update_status ─────────────
-// Field Worker updates the status of their work order.
-// Body: { wo_id, status, remarks } + optional photo file
+// ── POST ?action=update_status ───────────────────────────────
+// Multipart: wo_id, status, remarks, photos[]
 if ($method === 'POST' && $action === 'update_status') {
-    $user  = requireRole('field_worker', 'supervisor');
-    $body  = $_POST ?: getBody();
-    $woId  = (int)($body['wo_id'] ?? 0);
-    $status= in_array($body['status'] ?? '', ['in_progress','on_hold','completed'])
-             ? $body['status'] : null;
-    $remarks = sanitize($body['remarks'] ?? '');
+    $m      = requireTeamRole('field_worker', 'supervisor');
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
+    $body   = $_POST ?: getBody();
+
+    $woId    = (int)($body['wo_id'] ?? 0);
+    $status  = in_array($body['status'] ?? '', ['in_progress','on_hold','completed'], true)
+               ? $body['status'] : null;
+    $remarks = clean($body['remarks'] ?? '');
 
     if (!$woId || !$status) {
         json_response(false, 'Work order ID and status are required.', [], 400);
     }
 
     $db = getDB();
-
-    // Verify the work order exists and belongs to this field worker
-    $wo = $db->prepare('SELECT * FROM WorkOrders WHERE wo_id = ?');
-    $wo->execute([$woId]);
+    $wo = $db->prepare('SELECT * FROM WorkOrders WHERE wo_id = ? AND team_id = ?');
+    $wo->execute([$woId, $teamId]);
     $w = $wo->fetch();
 
     if (!$w) {
         json_response(false, 'Work order not found.', [], 404);
     }
-    if ($user['role'] === 'field_worker' && $w['assigned_to'] != $user['user_id']) {
+    if ($m['role'] === 'field_worker' && (int)$w['assigned_to'] !== (int)$actor['user_id']) {
         json_response(false, 'You can only update your own work orders.', [], 403);
     }
+   
+    if ($w['status'] === 'completed' && $m['role'] === 'field_worker') {
+        json_response(false, 'This work order is already completed. Ask your supervisor to reopen it.', [], 409);
+    }
 
-// Insert field work update
     $db->prepare(
-        'INSERT INTO FieldWorkUpdates (wo_id, updated_by, status, remarks)
-         VALUES (?, ?, ?, ?)'
-    )->execute([$woId, $user['user_id'], $status, $remarks]);
-    $updateId = $db->lastInsertId();
+        'INSERT INTO FieldWorkUpdates (wo_id, updated_by, status, remarks) VALUES (?, ?, ?, ?)'
+    )->execute([$woId, $actor['user_id'], $status, $remarks]);
+    $updateId = (int)$db->lastInsertId();
 
-    // Handle completion evidence photo(s) — supports multiple
-    $photoPaths = handleMultiplePhotoUploads('photos', $woId);
-    foreach ($photoPaths as $photoPath) {
+    foreach (handleMultiplePhotoUploads('photos', 'WO', $woId) as $photoPath) {
         $db->prepare(
-            'INSERT INTO FieldWorkPhotos (update_id, file_path, file_name)
-             VALUES (?, ?, ?)'
+            'INSERT INTO FieldWorkPhotos (update_id, file_path, file_name) VALUES (?, ?, ?)'
         )->execute([$updateId, $photoPath, basename($photoPath)]);
     }
 
-    // Update work order status
-    $db->prepare('UPDATE WorkOrders SET status = ? WHERE wo_id = ?')
-       ->execute([$status, $woId]);
+    $db->prepare('UPDATE WorkOrders SET status = ? WHERE wo_id = ? AND team_id = ?')
+       ->execute([$status, $woId, $teamId]);
 
-    // If completed, also mark the parent report as completed
-    if ($status === 'completed') {
-        $db->prepare('UPDATE InspectionReports SET status = "completed" WHERE report_id = ?')
-           ->execute([$w['report_id']]);
-    } elseif ($status === 'in_progress') {
-        $db->prepare('UPDATE InspectionReports SET status = "in_progress" WHERE report_id = ?')
-           ->execute([$w['report_id']]);
+    // Keep the parent report's status in step with the work order.
+    $reportStatus = match ($status) {
+        'completed'   => 'completed',
+        'in_progress' => 'in_progress',
+        default       => null,      // on_hold has no report-level equivalent
+    };
+    if ($reportStatus) {
+        $db->prepare('UPDATE InspectionReports SET status = ? WHERE report_id = ? AND team_id = ?')
+           ->execute([$reportStatus, $w['report_id'], $teamId]);
     }
 
-    logActivity(
-        $user['user_id'], 'update_work_order',
-        'work_order', $woId,
-        "{$user['name']} updated work order {$w['wo_code']} to '$status'."
-    );
+    logActivity($actor['user_id'], 'update_work_order', 'work_order', $woId,
+        "{$actor['name']} updated work order {$w['wo_code']} to '$status'.", $teamId);
 
     json_response(true, 'Work order status updated successfully.');
 }
 
-// ── GET /api/workorders.php?action=stats ─────────────────────
-// Dashboard stats for Supervisor.
+// ── GET ?action=stats ────────────────────────────────────────
 if ($method === 'GET' && $action === 'stats') {
-    $user = requireRole('supervisor', 'administrator');
-    $db   = getDB();
+    $m      = requireTeamRole('supervisor');
+    $teamId = (int)$m['team_id'];
+    $db     = getDB();
 
-    $total    = $db->query('SELECT COUNT(*) FROM WorkOrders')->fetchColumn();
-    $ongoing  = $db->query("SELECT COUNT(*) FROM WorkOrders WHERE status IN ('pending','in_progress')")->fetchColumn();
-    $completed= $db->query("SELECT COUNT(*) FROM WorkOrders WHERE status = 'completed'")->fetchColumn();
-    $highSev  = $db->query("SELECT COUNT(*) FROM WorkOrders WHERE severity IN ('high','critical') AND status != 'completed'")->fetchColumn();
+    $wo = $db->prepare(
+        "SELECT
+            COUNT(*) AS total,
+            SUM(status IN ('pending','in_progress')) AS ongoing,
+            SUM(status = 'completed') AS completed,
+            SUM(severity IN ('high','critical') AND status <> 'completed') AS high_severity
+         FROM WorkOrders WHERE team_id = ?"
+    );
+    $wo->execute([$teamId]);
+    $w = $wo->fetch();
 
-    $totalRep = $db->query('SELECT COUNT(*) FROM InspectionReports')->fetchColumn();
-    $pending  = $db->query("SELECT COUNT(*) FROM InspectionReports WHERE status = 'pending'")->fetchColumn();
+    $rep = $db->prepare(
+        "SELECT COUNT(*) AS total, SUM(status = 'pending') AS pending
+         FROM InspectionReports WHERE team_id = ?"
+    );
+    $rep->execute([$teamId]);
+    $r = $rep->fetch();
 
     json_response(true, 'Supervisor stats retrieved.', [
-        'total_reports'   => (int)$totalRep,
-        'pending_reports' => (int)$pending,
-        'ongoing_orders'  => (int)$ongoing,
-        'completed_orders'=> (int)$completed,
-        'high_severity'   => (int)$highSev,
+        'total_reports'    => (int)$r['total'],
+        'pending_reports'  => (int)$r['pending'],
+        'ongoing_orders'   => (int)$w['ongoing'],
+        'completed_orders' => (int)$w['completed'],
+        'high_severity'    => (int)$w['high_severity'],
     ]);
 }
 

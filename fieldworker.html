@@ -8,6 +8,9 @@
 <title>ConstructFlow — Field Worker Portal</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="style.css"/>
+<link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
+<link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="logo/apple-touch-icon.png"/>
 </head>
 <body data-page="fieldworker">
 <div class="toast-container" id="toasts"></div>
@@ -16,10 +19,10 @@
   <div class="dash">
     <div class="sidebar-overlay" onclick="closeSidebar()"></div>
     <aside class="sidebar">
-      <div class="sidebar-logo"><div class="logo-badge">CF</div><div class="logo-name">CONSTRUCTFLOW</div></div>
+      <div class="sidebar-logo"><div class="logo-badge"><img src="logo/logo.svg" alt="ConstructFlow"/></div><div class="logo-name">CONSTRUCTFLOW</div></div>
       <div class="sidebar-user">
-        <div class="avatar av-green" id="fw-av">D</div>
-        <div class="user-info"><div class="uname" id="fw-uname">Dave Mechanic</div><div class="urole">Field Worker</div></div>
+        <div class="avatar av-green" id="fw-av">&mdash;</div>
+        <div class="user-info"><div class="uname" id="fw-uname">&mdash;</div><div class="urole">Field Worker</div></div>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-label">Main Menu</div>
@@ -34,13 +37,31 @@
     </aside>
     <main class="main">
       <div class="topbar">
-        <div class="topbar-left">
+                <div class="topbar-left">
           <button class="hamburger" onclick="toggleSidebar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
-          <span class="topbar-title">Field Worker Portal</span>
+          <div>
+            <!-- The team, not the role. The sidebar already says which
+                 role you are; what you can't see anywhere else is which
+                 team's work you're looking at. -->
+            <span class="topbar-title" id="fw-teamname">&mdash;</span>
+            <div class="topbar-teamdesc" id="fw-teamdesc"></div>
+          </div>
         </div>
-        <div class="topbar-user" onclick="openModal('modal-profile')">
-          <div><div class="uname" id="fw-topname">Dave Mechanic</div><div class="uemail">fieldworker@constructflow.com</div></div>
-          <div class="avatar av-green" id="fw-topav">D</div>
+
+        <div class="topbar-right">
+          <div class="topbar-user" style="cursor:default">
+            <div><div class="uname" id="fw-topname">&mdash;</div><div class="uemail" id="fw-topemail">&mdash;</div></div>
+            <div class="avatar av-green" id="fw-topav">&mdash;</div>
+          </div>
+
+          <div class="menu-wrap">
+            <button class="icon-btn" onclick="toggleRoleMenu(event,'fw')" aria-label="Settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.33.4.6.73.76H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
+            <div class="menu" id="fw-settings-menu">
+              <button class="menu-item" onclick="openRoleProfile('fw')">My Profile</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="content">

@@ -2,14 +2,302 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta http-equiv="refresh" content="0; url=login.html"/>
-<title>ConstructFlow</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="theme-color" content="#f59e0b"/>
+<link rel="manifest" href="manifest.json"/>
+<title>ConstructFlow — Severity-Based Inspection &amp; Work Order Coordination</title>
+<meta name="description" content="ConstructFlow rates every site inspection by severity, then turns it into a work order with a named owner and a deadline. Built for small construction teams."/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css"/>
+<link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
+<link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="logo/apple-touch-icon.png"/>
+
+<style>
+/* ═══════════════════════════════════════════════════════
+   LANDING PAGE
+   ═══════════════════════════════════════════════════════ */
+html,body{height:auto;min-height:100%}
+body.landing{overflow-y:auto;overflow-x:hidden}
+html{-webkit-text-size-adjust:100%}
+
+.lp-wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+
+/* ─── NAV ─── */
+.lp-nav{
+  position:sticky;top:0;z-index:30;
+  background:rgba(15,17,23,.92);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border);
+}
+.lp-nav .lp-wrap{display:flex;align-items:center;gap:28px;min-height:64px}
+.lp-brand{display:flex;align-items:center;gap:10px;margin-right:auto;text-decoration:none}
+.lp-brand .logo-badge{width:32px;height:32px}
+.lp-brand span{font-weight:700;font-size:15px;color:var(--text);letter-spacing:-.2px}
+.lp-links{display:flex;align-items:center;gap:24px}
+.lp-links a.lp-link{font-size:13px;font-weight:500;color:var(--muted);text-decoration:none;transition:color .15s}
+.lp-links a.lp-link:hover{color:var(--text)}
+.lp-nav .btn{text-decoration:none}
+
+/* ─── HERO ─── */
+.lp-hero{padding:76px 0 84px}
+.lp-hero .lp-wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
+.lp-hero h1{
+  font-size:clamp(30px,4.4vw,46px);font-weight:800;color:var(--text);
+  line-height:1.1;letter-spacing:-1.2px;
+}
+.lp-hero .lp-lede{
+  font-size:15.5px;color:var(--muted);line-height:1.7;margin-top:18px;max-width:46ch;
+}
+.lp-cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px}
+.lp-cta .btn{padding:12px 22px;font-size:14px;text-decoration:none}
+.lp-note{
+  margin-top:26px;padding:12px 16px;border-left:3px solid var(--blue);
+  background:rgba(59,130,246,.07);border-radius:0 8px 8px 0;
+  font-size:12.5px;color:var(--muted);line-height:1.65;max-width:46ch;
+}
+
+/* ─── SEVERITY LADDER ─── */
+.lp-ladder{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:22px 22px 20px}
+.lp-ladder-title{font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:18px}
+.lp-rung{display:grid;grid-template-columns:78px 1fr;align-items:center;gap:14px;margin-bottom:14px}
+.lp-rung:last-of-type{margin-bottom:0}
+.lp-rung b{font-size:11.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase}
+.lp-track{height:14px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden}
+.lp-fill{height:100%;border-radius:3px;transform-origin:left;animation:lp-grow .85s cubic-bezier(.2,.7,.3,1) both}
+.lp-r1 b{color:#f87171} .lp-r1 .lp-fill{background:var(--red);width:100%;animation-delay:.05s}
+.lp-r2 b{color:#fb923c} .lp-r2 .lp-fill{background:var(--orange);width:72%;animation-delay:.16s}
+.lp-r3 b{color:#facc15} .lp-r3 .lp-fill{background:var(--yellow);width:45%;animation-delay:.27s}
+.lp-r4 b{color:#4ade80} .lp-r4 .lp-fill{background:var(--green);width:22%;animation-delay:.38s}
+@keyframes lp-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.lp-ladder-note{
+  margin-top:20px;padding-top:16px;border-top:1px solid var(--border);
+  font-size:12px;color:var(--muted);line-height:1.6;
+}
+@media(prefers-reduced-motion:reduce){.lp-fill{animation:none}}
+
+/* ─── SECTIONS ─── */
+.lp-band{padding:72px 0;border-top:1px solid var(--border)}
+.lp-band-alt{background:#12151d}
+.lp-band h2{font-size:clamp(21px,2.8vw,27px);font-weight:700;color:var(--text);letter-spacing:-.6px;line-height:1.25}
+.lp-two{display:grid;grid-template-columns:minmax(0,290px) minmax(0,1fr);gap:52px}
+
+/* ─── ROLES ───*/
+.lp-role{
+  display:grid;grid-template-columns:170px 1fr;gap:22px;
+  padding:18px 0 18px 18px;border-top:1px solid var(--border);border-left:3px solid transparent;
+}
+.lp-role:last-child{border-bottom:1px solid var(--border)}
+.lp-role h3{font-size:13.5px;font-weight:700;color:var(--text)}
+.lp-role p{font-size:13px;color:var(--muted);line-height:1.65;max-width:60ch}
+.lp-role-admin{border-left-color:var(--red)}
+.lp-role-sup{border-left-color:var(--blue)}
+.lp-role-insp{border-left-color:var(--green)}
+.lp-role-work{border-left-color:var(--amber)}
+
+/* ─── ABOUT / CONTACT ─── */
+.lp-prose p{font-size:14.5px;color:var(--label);line-height:1.8;margin-bottom:16px;max-width:66ch}
+.lp-prose p:last-child{margin-bottom:0}
+.lp-contact{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:28px}
+.lp-contact h3{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;margin-bottom:7px}
+.lp-contact a,.lp-contact p{font-size:14px;color:var(--text);text-decoration:none;line-height:1.65}
+.lp-contact a:hover{color:var(--amber)}
+
+/* ─── FOOTER ─── */
+.lp-foot{border-top:1px solid var(--border);padding:26px 0}
+.lp-foot .lp-wrap{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between}
+.lp-foot p{font-size:12px;color:var(--muted)}
+.lp-foot nav{display:flex;gap:20px}
+.lp-foot nav a{font-size:12px;color:var(--muted);text-decoration:none}
+.lp-foot nav a:hover{color:var(--text)}
+
+/* ─── RESPONSIVE ─── */
+@media(max-width:880px){
+  .lp-hero .lp-wrap{grid-template-columns:1fr;gap:44px}
+  .lp-two{grid-template-columns:1fr;gap:26px}
+  .lp-role{grid-template-columns:1fr;gap:6px}
+}
+@media(max-width:640px){
+  .lp-wrap{padding:0 18px}
+  .lp-hero{padding:40px 0 52px}
+  .lp-band{padding:50px 0}
+  .lp-nav .lp-wrap{flex-wrap:wrap;gap:10px;padding-top:11px}
+  .lp-links{order:3;width:100%;gap:0;justify-content:space-between;border-top:1px solid var(--border)}
+  .lp-links .lp-link{padding:11px 2px;font-size:12.5px}
+  .lp-cta .btn{width:100%;justify-content:center;padding:13px 20px}
+  .lp-ladder{padding:18px 16px 16px}
+  .lp-rung{grid-template-columns:62px 1fr;gap:11px}
+  .lp-rung b{font-size:10.5px}
+  .lp-role{padding-left:14px}
+  .lp-foot .lp-wrap{flex-direction:column;align-items:flex-start;gap:12px}
+}
+
+@media(max-width:380px){
+  .lp-wrap{padding:0 15px}
+  .lp-links .lp-link{font-size:11.5px}
+  .lp-brand span{font-size:14px}
+}
+</style>
 </head>
-<body>
-<!-- index.html is kept only as an entry point (for the PWA start_url and
-     the http://.../constructflow/ root URL) — the real app now lives in
-     login.html, inspector.html, supervisor.html, fieldworker.html and
-     admin.html. If the meta-refresh above doesn't fire, use this link: -->
-<p><a href="login.html">Continue to ConstructFlow →</a></p>
+<body class="landing">
+
+<!-- ═══ NAV ═══ -->
+<header class="lp-nav">
+  <div class="lp-wrap">
+    <a class="lp-brand" href="#top">
+      <div class="logo-badge"><img src="logo/logo.svg" alt="ConstructFlow"/></div>
+      <span>ConstructFlow</span>
+    </a>
+    <nav class="lp-links">
+      <a class="lp-link" href="#roles">How it works</a>
+      <a class="lp-link" href="#about">About us</a>
+      <a class="lp-link" href="#contact">Contact us</a>
+    </nav>
+    <a class="btn btn-dark" id="lp-auth" href="login.html">Log in</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ═══ HERO ═══ -->
+  <section class="lp-hero">
+    <div class="lp-wrap">
+      <div>
+        <h1>Know which problem to fix first.</h1>
+        <p class="lp-lede">
+          ConstructFlow rates every site inspection by severity, then turns it into
+          a work order with a named owner and a deadline. Nothing urgent sits at the
+          bottom of a list.
+        </p>
+
+        <div class="lp-cta">
+          <a class="btn btn-amber" href="create-team.html">Create your team</a>
+          <a class="btn btn-dark" href="#roles">See how it works</a>
+        </div>
+        <p class="lp-note">
+          Joining a team that already exists? Open the invite link your
+          administrator emailed you — there is nothing to sign up for here.
+        </p>
+      </div>
+
+      <div class="lp-ladder" aria-label="The four severity levels">
+        <div class="lp-ladder-title">Severity decides the queue</div>
+
+        <div class="lp-rung lp-r1"><b>Critical</b><div class="lp-track"><div class="lp-fill"></div></div></div>
+        <div class="lp-rung lp-r2"><b>High</b><div class="lp-track"><div class="lp-fill"></div></div></div>
+        <div class="lp-rung lp-r3"><b>Moderate</b><div class="lp-track"><div class="lp-fill"></div></div></div>
+        <div class="lp-rung lp-r4"><b>Low</b><div class="lp-track"><div class="lp-fill"></div></div></div>
+
+        <p class="lp-ladder-note">
+          A cracked load-bearing column and a scuffed handrail are not the same job.
+          ConstructFlow separates them before anyone walks the site.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ ROLES ═══ -->
+  <section class="lp-band lp-band-alt" id="roles">
+    <div class="lp-wrap lp-two">
+      <div><h2>Four roles, one site record</h2></div>
+      <div>
+        <div class="lp-role lp-role-admin">
+          <h3>Administrator</h3>
+          <p>The business owner. Creates the team, invites everyone by email, and decides what each person does. Roles can be changed later as the crew shifts.</p>
+        </div>
+        <div class="lp-role lp-role-sup">
+          <h3>Supervisor</h3>
+          <p>Runs the work. Assigns inspection tasks, turns findings into work orders, and tracks what is open, on hold, or done.</p>
+        </div>
+        <div class="lp-role lp-role-insp">
+          <h3>Field Inspector</h3>
+          <p>Walks the site against an assigned task and files what they find, with geotagged photos and a severity rating.</p>
+        </div>
+        <div class="lp-role lp-role-work">
+          <h3>Field Worker</h3>
+          <p>Sees only the work assigned to them, in severity order, and posts progress and completion photos from a phone.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ ABOUT ═══ -->
+  <section class="lp-band" id="about">
+    <div class="lp-wrap lp-two">
+      <div><h2>About us</h2></div>
+      <div class="lp-prose">
+        <p>
+          Small construction teams rarely lose track of a problem because nobody noticed it.
+          They lose track because the notice lived in a group chat, a camera roll, and
+          somebody's memory of what the foreman said on Tuesday.
+        </p>
+        <p>
+          ConstructFlow is built around one idea: a finding is not useful until it has a
+          severity, an owner, and a deadline attached to it. Every inspection filed in the
+          system becomes a work order somebody is accountable for, and the most dangerous
+          items rise to the top on their own.
+        </p>
+        <p>
+          It runs in a browser and installs to a phone, so a worker on scaffolding and an
+          owner at a desk are reading the same record.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CONTACT ═══ -->
+  <section class="lp-band lp-band-alt" id="contact">
+    <div class="lp-wrap lp-two">
+      <div><h2>Contact us</h2></div>
+      <div>
+        <div class="lp-contact">
+          <div>
+            <h3>Email</h3>
+            <a href="mailto:hello@constructflow.com">constructflow7@gmail.com</a>
+          </div>
+          <div>
+            <h3>Phone</h3>
+            <a href="tel:+639703872840">+63 970 387 2840</a>
+          </div>
+          <div>
+            <h3>Office</h3>
+            <p>Tarlac City, Tarlac</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="lp-foot">
+  <div class="lp-wrap">
+    <p>ConstructFlow
+    </p>
+    <nav>
+      <a href="#about">About us</a>
+      <a href="#contact">Contact us</a>
+      <a href="login.html">Log in</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+(async () => {
+  try{
+    const res = await fetch('api/auth.php?action=me', { credentials:'include' });
+    if(!res.ok) return;
+    const data = await res.json();
+    if(data && data.success){
+      const link = document.getElementById('lp-auth');
+      link.href        = 'team.html';
+      link.textContent = 'Go to dashboard';
+      link.className   = 'btn btn-amber';
+    }
+  }catch(e){ /* signed out, or offline */ }
+})();
+
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+
 </body>
 </html>

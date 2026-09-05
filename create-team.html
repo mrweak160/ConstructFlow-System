@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="theme-color" content="#f59e0b"/>
+<link rel="manifest" href="manifest.json"/>
+<title>ConstructFlow — Create your team</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css"/>
+<link rel="stylesheet" href="style-auth.css"/>
+<link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
+<link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="logo/apple-touch-icon.png"/>
+</head>
+<body data-page="create-team">
+
+<div class="toast-container" id="toasts"></div>
+
+<div class="team-page">
+  <div class="team-wrap">
+
+    <div class="team-head">
+      <a href="index.html" class="team-mark" style="text-decoration:none">
+        <img src="logo/logo.svg" alt="ConstructFlow" style="width:32px;height:32px;display:block"/>
+      </a>
+      <h1>Create your team</h1>
+      <p id="ct-sub">Tell us who you are.</p>
+    </div>
+
+    <div class="auth-banner" id="ct-banner" role="status" aria-live="polite"></div>
+
+    <div class="team-card" style="padding:0">
+
+      <!-- Four dots. gotoStep reads the count from this markup, so the
+           number of steps lives here and not in the JavaScript. -->
+      <div class="auth-steps" id="ct-steps">
+        <div class="auth-step current" data-step="1">
+          <div class="auth-step-dot">1</div><div class="auth-step-label">About you</div>
+        </div>
+        <div class="auth-step-bar"></div>
+        <div class="auth-step" data-step="2">
+          <div class="auth-step-dot">2</div><div class="auth-step-label">Verify</div>
+        </div>
+        <div class="auth-step-bar"></div>
+        <div class="auth-step" data-step="3">
+          <div class="auth-step-dot">3</div><div class="auth-step-label">Password</div>
+        </div>
+        <div class="auth-step-bar"></div>
+        <div class="auth-step" data-step="4">
+          <div class="auth-step-dot">4</div><div class="auth-step-label">Your team</div>
+        </div>
+      </div>
+
+      <div class="auth-modal-body">
+
+        <!-- ── STEP 1 · ADMIN ACCOUNT DETAILS ─────────────── -->
+        <div class="auth-pane active" id="ct-pane-1">
+
+          <div class="auth-grid-2">
+            <div class="auth-field">
+              <label for="ct-first">First name <span>*</span></label>
+              <input class="auth-input" id="ct-first" autocomplete="given-name" placeholder="Juan"/>
+            </div>
+            <div class="auth-field">
+              <label for="ct-last">Last name <span>*</span></label>
+              <input class="auth-input" id="ct-last" autocomplete="family-name" placeholder="Dela Cruz"/>
+            </div>
+          </div>
+
+          <div class="auth-grid-2">
+            <div class="auth-field">
+              <label for="ct-gender">Gender <span>*</span></label>
+              <select class="auth-input" id="ct-gender">
+                <option value="">Select&hellip;</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
+            </div>
+            <div class="auth-field">
+              <label for="ct-birth">Birthdate <span>*</span></label>
+              <!-- type=date gives a native picker and forces the Y-m-d
+                   value the API expects. The max attribute is set by
+                   auth.js at load so it can never be today or later. -->
+              <input class="auth-input" type="date" id="ct-birth"/>
+            </div>
+          </div>
+
+          <div class="auth-field">
+            <label for="ct-address">Address <span>*</span></label>
+            <input class="auth-input" id="ct-address" maxlength="255" autocomplete="street-address"
+                   placeholder="123 Rizal St, Barangay Poblacion, Marikina"/>
+          </div>
+
+          <div class="auth-field">
+            <label for="ct-email">Email <span>*</span></label>
+            <input class="auth-input" type="email" id="ct-email" autocomplete="email" placeholder="you@example.com"/>
+          </div>
+
+          <div class="auth-err" id="ct-err-1" role="alert"></div>
+          <button class="auth-btn" id="ct-btn-1" onclick="ctStart()">Send verification code</button>
+        </div>
+
+        <!-- ── STEP 2 · VERIFY EMAIL ──────────────────────── -->
+        <div class="auth-pane" id="ct-pane-2">
+          <p class="auth-sent-to">
+            We sent a 6-character code to <b id="ct-email-echo"></b>.<br>
+            Enter it below to confirm the address is yours.
+          </p>
+
+          <div class="auth-code" id="ct-code">
+            <input maxlength="1" inputmode="text" autocomplete="one-time-code" aria-label="Code character 1"/>
+            <input maxlength="1" inputmode="text" aria-label="Code character 2"/>
+            <input maxlength="1" inputmode="text" aria-label="Code character 3"/>
+            <input maxlength="1" inputmode="text" aria-label="Code character 4"/>
+            <input maxlength="1" inputmode="text" aria-label="Code character 5"/>
+            <input maxlength="1" inputmode="text" aria-label="Code character 6"/>
+          </div>
+
+          <div class="auth-err" id="ct-err-2" role="alert"></div>
+          <button class="auth-btn" id="ct-btn-2" onclick="ctVerify()">Verify</button>
+
+          <div class="auth-row-between">
+            <button type="button" class="auth-link" onclick="gotoStep('ct',1)">&larr; Change email</button>
+            <button type="button" class="auth-resend" id="ct-resend" onclick="ctResend()">Resend code</button>
+          </div>
+        </div>
+
+        <!-- ── STEP 3 · PASSWORD ──────────────────────────── -->
+        <div class="auth-pane" id="ct-pane-3">
+          <div class="auth-field">
+            <label for="ct-pass">Password <span>*</span></label>
+            <input class="auth-input" type="password" id="ct-pass" autocomplete="new-password"
+                   placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" oninput="paintRules('ct-pass','ct-rules')"/>
+          </div>
+
+          <div class="auth-rules" id="ct-rules">
+            <div class="auth-rule" data-rule="len"><span class="auth-rule-mark">&#10003;</span>At least 8 characters</div>
+            <div class="auth-rule" data-rule="upper"><span class="auth-rule-mark">&#10003;</span>At least 1 uppercase letter</div>
+            <div class="auth-rule" data-rule="num"><span class="auth-rule-mark">&#10003;</span>At least 1 number</div>
+          </div>
+
+          <div class="auth-field">
+            <label for="ct-pass2">Confirm password <span>*</span></label>
+            <input class="auth-input" type="password" id="ct-pass2" autocomplete="new-password"
+                   placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"/>
+          </div>
+
+          <div class="auth-err" id="ct-err-3" role="alert"></div>
+          <button class="auth-btn" id="ct-btn-3" onclick="ctPassword()">Continue</button>
+        </div>
+
+        <!-- ── STEP 4 · TEAM DETAILS ──────────────────────── -->
+        <div class="auth-pane" id="ct-pane-4">
+          <p class="auth-sent-to">
+            Last step. Name the team you'll be administering &mdash;
+            you can rename it later.
+          </p>
+
+          <div class="auth-field">
+            <label for="ct-team">Team or company name <span>*</span></label>
+            <input class="auth-input" id="ct-team" maxlength="150" placeholder="Dela Cruz Construction"/>
+          </div>
+
+          <div class="auth-field">
+            <label for="ct-desc">Description</label>
+            <input class="auth-input" id="ct-desc" maxlength="500" placeholder="Optional &mdash; what this team works on"/>
+          </div>
+
+          <div class="auth-err" id="ct-err-4" role="alert"></div>
+          <button class="auth-btn" id="ct-btn-4" onclick="ctComplete()">Create team</button>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="team-foot">
+      Already have an account? <a href="login.html" class="auth-link">Log in</a>
+    </div>
+    <div class="team-foot" style="margin-top:10px">
+      <a href="index.html" class="login-home">&larr; Return</a>
+    </div>
+
+  </div>
+</div>
+
+<script src="auth.js"></script>
+</body>
+</html>

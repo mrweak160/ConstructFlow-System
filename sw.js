@@ -1,14 +1,27 @@
-const CACHE = 'constructflow-v6';
+const CACHE = 'constructflow-v10';
 const ASSETS = [
   './',
   './index.html',
   './login.html',
+  './team.html',
   './inspector.html',
   './supervisor.html',
   './fieldworker.html',
   './admin.html',
   './style.css',
+  './style-auth.css',
   './app.js',
+  './auth.js',
+  './team.js',
+  './create-team.html',
+  './setup-account.html',
+  './logo/logo.svg',
+  './logo/icon-192.png',
+  './logo/icon-512.png',
+  './logo/favicon.ico',
+  './logo/favicon-96.png',
+  './logo/apple-touch-icon.png'
+
 ];
 
 self.addEventListener('install', e => {
@@ -24,20 +37,16 @@ self.addEventListener('activate', e => e.waitUntil(
 
 self.addEventListener('fetch', e => {
   const req = e.request;
-
-  // Never let the SW cache/intercept API calls — those must always hit the
-  // server fresh, or dashboards will silently show stale data.
   if (req.url.includes('/api/')) return;
-
-  // Network-first for navigations (HTML pages) so a code change shows up
-  // on the very next load instead of being served from a stale cache.
-  if (req.mode === 'navigate') {
-    e.respondWith(
-      fetch(req).catch(() => caches.match(req))
-    );
-    return;
-  }
-
-  // Cache-first for static assets (css/js/icons) is fine.
-  e.respondWith(caches.match(req).then(r => r || fetch(req)));
+  e.respondWith(
+    fetch(req)
+      .then(res => {
+        if (req.method === 'GET' && res.ok && new URL(req.url).origin === self.location.origin) {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(req, copy));
+        }
+        return res;
+      })
+      .catch(() => caches.match(req))
+  );
 });

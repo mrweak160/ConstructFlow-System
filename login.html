@@ -6,53 +6,183 @@
 <meta name="theme-color" content="#f59e0b"/>
 <link rel="manifest" href="manifest.json"/>
 <title>ConstructFlow — Sign In</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="style.css"/>
+<link rel="stylesheet" href="style-auth.css"/>
+<link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
+<link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="logo/apple-touch-icon.png"/>
 </head>
 <body data-page="login">
+
 <div class="toast-container" id="toasts"></div>
 
+<!-- ═══════LOGIN════════ -->
 <div id="login" class="screen active">
   <div class="login-box">
-    <div class="login-icon">
-      <svg viewBox="0 0 24 24" fill="var(--amber)"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5L12 1z"/></svg>
-    </div>
-    <div class="login-title">ConstructFlow</div>
-    <div class="login-sub">Work Order Coordination System</div>
+    <a href="index.html" class="login-brand">
+            <div class="login-icon">
+        <img src="logo/logo.svg" alt="ConstructFlow" style="width:38px;height:38px;display:block"/>
+      </div>
+      <div class="login-title">ConstructFlow</div>
+      <div class="login-sub">Work Order Coordination System</div>
+    </a>
+
+    <div class="auth-banner" id="l-banner" role="status" aria-live="polite"></div>
+
     <div class="login-form">
       <div class="login-group">
-        <label>User Email</label>
+        <label for="l-email">Email</label>
         <div class="input-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          <input type="email" id="l-email" placeholder="email@constructflow.com"/>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          <input type="email" id="l-email" autocomplete="email" placeholder="you@example.com"/>
         </div>
       </div>
+
       <div class="login-group">
-        <label>Password</label>
+        <label for="l-pass">Password</label>
         <div class="input-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <input type="password" id="l-pass" placeholder="••••••••"/>
+          <input type="password" id="l-pass" autocomplete="current-password" placeholder="••••••••"/>
         </div>
       </div>
-      <div class="login-group">
-        <label>System Access Role</label>
-        <div class="input-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          <select id="l-role">
-            <option value="inspector">Field Inspector</option>
-            <option value="supervisor">Supervisor</option>
-            <option value="fieldworker">Field Worker</option>
-            <option value="admin">Administrator</option>
-          </select>
-        </div>
+
+      <div class="auth-row-between">
+        <button type="button" class="auth-link" onclick="openForgot()">Forgot password?</button>
       </div>
-      <div class="login-err" id="l-err">Invalid credentials. Please try again.</div>
-      <button class="btn-login" onclick="doLogin()">Sign In</button>
+
+      <div class="login-err" id="l-err" role="alert"></div>
+
+      <button class="btn-login" id="l-submit" onclick="doLogin()">Log in</button>
     </div>
-    <div class="login-footer">ConstructFlow v1.0 • Capstone Project</div>
+
+    <div class="auth-alt">
+      Joining a team? Use the invite link your administrator emailed you.
+    </div>
+
+    <div class="auth-alt" style="margin-top:8px">
+      Starting a business?
+        <a href="create-team.html" class="auth-link-muted"><b>Create a team</b></a>
+    </div>
+
+        <div class="login-footer">
+      <a href="index.html" class="login-home">&larr; Return</a>
+    </div>
+    <div class="login-footer" style="margin-top:8px">ConstructFlow</div>
   </div>
 </div>
 
-<script src="app.js"></script>
+<!-- ══════════════════════════════════════════════════════
+     FORGOT PASSWORD
+     ══════════════════════════════════════════════════════ -->
+<div class="auth-overlay" id="modal-forgot" role="dialog" aria-modal="true" aria-labelledby="fg-heading">
+  <div class="auth-modal">
+    <div class="auth-modal-head">
+      <div>
+        <h2 id="fg-heading">Reset password</h2>
+        <p id="fg-sub">Forgot your password? We'll email you a code.</p>
+      </div>
+      <button class="auth-x" onclick="closeAuthModal('modal-forgot')" aria-label="Close">&times;</button>
+    </div>
+
+    <div class="auth-steps" id="fg-steps">
+      <div class="auth-step current" data-step="1">
+        <div class="auth-step-dot">1</div><div class="auth-step-label">Your email</div>
+      </div>
+      <div class="auth-step-bar"></div>
+      <div class="auth-step" data-step="2">
+        <div class="auth-step-dot">2</div><div class="auth-step-label">Verify code</div>
+      </div>
+      <div class="auth-step-bar"></div>
+      <div class="auth-step" data-step="3">
+        <div class="auth-step-dot">3</div><div class="auth-step-label">New password</div>
+      </div>
+    </div>
+
+    <div class="auth-modal-body">
+
+      <!-- Step 1 — email -->
+      <div class="auth-pane active" id="fg-pane-1">
+        <div class="auth-field">
+          <label for="f-email">Registered email <span>*</span></label>
+          <input class="auth-input" type="email" id="f-email" autocomplete="email" placeholder="you@example.com"/>
+        </div>
+        <div class="auth-err" id="fg-err-1" role="alert"></div>
+        <button class="auth-btn" id="fg-btn-1" onclick="forgotStart()">Send code</button>
+      </div>
+
+      <!-- Step 2 — verify code -->
+      <div class="auth-pane" id="fg-pane-2">
+        <p class="auth-sent-to">
+          If <b id="fg-email-echo"></b> is registered, a 6-character code is on its way.
+          Enter it below.
+        </p>
+        <div class="auth-code" id="fg-code" data-target="forgotVerify">
+          <input maxlength="1" inputmode="text" autocomplete="one-time-code" aria-label="Code character 1"/>
+          <input maxlength="1" inputmode="text" aria-label="Code character 2"/>
+          <input maxlength="1" inputmode="text" aria-label="Code character 3"/>
+          <input maxlength="1" inputmode="text" aria-label="Code character 4"/>
+          <input maxlength="1" inputmode="text" aria-label="Code character 5"/>
+          <input maxlength="1" inputmode="text" aria-label="Code character 6"/>
+        </div>
+        <div class="auth-err" id="fg-err-2" role="alert"></div>
+        <button class="auth-btn" id="fg-btn-2" onclick="forgotVerify()">Verify code</button>
+        <div class="auth-resend">
+          Didn't get it?
+          <button id="fg-resend" onclick="forgotResend()">Resend code</button>
+        </div>
+      </div>
+
+      <!-- Step 3 — new password -->
+      <div class="auth-pane" id="fg-pane-3">
+        <div class="auth-field">
+          <label for="f-pass">New password <span>*</span></label>
+          <input class="auth-input" type="password" id="f-pass" autocomplete="new-password"
+                 placeholder="••••••••" oninput="paintRules('f-pass','fg-rules')"/>
+        </div>
+
+        <div class="auth-rules" id="fg-rules">
+          <div class="auth-rule" data-rule="len"><span class="auth-rule-mark">✓</span>At least 8 characters</div>
+          <div class="auth-rule" data-rule="upper"><span class="auth-rule-mark">✓</span>At least 1 uppercase letter</div>
+          <div class="auth-rule" data-rule="num"><span class="auth-rule-mark">✓</span>At least 1 number</div>
+        </div>
+
+        <div class="auth-field">
+          <label for="f-pass2">Confirm new password <span>*</span></label>
+          <input class="auth-input" type="password" id="f-pass2" autocomplete="new-password" placeholder="••••••••"/>
+        </div>
+        <div class="auth-err" id="fg-err-3" role="alert"></div>
+        <button class="auth-btn" id="fg-btn-3" onclick="forgotReset()">Reset password</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     AWAITING TEAM APPROVAL
+     ══════════════════════════════════════════════════════ -->
+<div class="auth-overlay" id="modal-pending" role="dialog" aria-modal="true" aria-labelledby="pend-heading">
+  <div class="auth-modal" style="max-width:400px">
+    <div class="auth-modal-head">
+      <div><h2 id="pend-heading">Waiting for approval</h2></div>
+      <button class="auth-x" onclick="closeAuthModal('modal-pending')" aria-label="Close">&times;</button>
+    </div>
+    <div class="auth-modal-body">
+      <div class="auth-wait">
+        <div class="auth-wait-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/>
+          </svg>
+        </div>
+        <h3 id="pend-team">Your request is pending</h3>
+        <p>An administrator needs to approve you before you can start working. You'll get access as soon as they do.</p>
+      </div>
+      <button class="auth-btn-ghost" onclick="signOutFromPending()">Sign out</button>
+    </div>
+  </div>
+</div>
+
+<script src="auth.js"></script>
 </body>
 </html>

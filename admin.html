@@ -5,150 +5,343 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <meta name="theme-color" content="#f59e0b"/>
 <link rel="manifest" href="manifest.json"/>
-<title>ConstructFlow — Admin Portal</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<title>ConstructFlow — Team Administration</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="style.css"/>
+<link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
+<link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="logo/apple-touch-icon.png"/>
 </head>
 <body data-page="admin">
+
 <div class="toast-container" id="toasts"></div>
 
 <div id="admin" class="screen active">
   <div class="dash">
     <div class="sidebar-overlay" onclick="closeSidebar()"></div>
+
+    <!-- ── SIDEBAR ─────────────────────────────────────── -->
     <aside class="sidebar">
-      <div class="sidebar-logo"><div class="logo-badge">CF</div><div class="logo-name">CONSTRUCTFLOW</div></div>
+            <div class="sidebar-logo"><div class="logo-badge"><img src="logo/logo.svg" alt="ConstructFlow"/></div><div class="logo-name">CONSTRUCTFLOW</div></div>
       <div class="sidebar-user">
         <div class="avatar av-red" id="adm-av">A</div>
-        <div class="user-info"><div class="uname" id="adm-uname">Admin User</div><div class="urole">Admin</div></div>
-      </div>
-      <nav class="sidebar-nav">
-        <div class="nav-label">Main Menu</div>
-        <div class="nav-item active" id="adm-nav-dash" onclick="switchView('admin','dashboard')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard
+        <div class="user-info">
+          <div class="uname" id="adm-uname">Administrator</div>
+          <div class="urole">Administrator</div>
         </div>
-        <div class="nav-item" id="adm-nav-users" onclick="switchView('admin','users')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>User Management
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-item active" id="adm-nav-dash" onclick="switchView('admin','dashboard')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          Dashboard
+        </div>
+        <div class="nav-item" id="adm-nav-members" onclick="switchView('admin','members')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
+          Members
         </div>
         <div class="nav-item" id="adm-nav-logs" onclick="switchView('admin','logs')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Audit Logs
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          Activity Logs
         </div>
       </nav>
-      <div class="sidebar-signout"><button class="btn-signout" onclick="doSignout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Sign Out</button></div>
-    </aside>
-    <main class="main">
-      <div class="topbar">
-        <div class="topbar-left">
-          <button class="hamburger" onclick="toggleSidebar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
-          <span class="topbar-title">Admin Portal</span>
-        </div>
-        <div class="topbar-user" onclick="openModal('modal-profile')">
-          <div><div class="uname" id="adm-topname">Admin User</div><div class="uemail">admin@constructflow.com</div></div>
-          <div class="avatar av-red" id="adm-topav">A</div>
-        </div>
+
+      <div class="sidebar-signout">
+        <button class="btn-signout" onclick="doSignout()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Sign Out
+        </button>
       </div>
-      <div class="content">
-        <div class="view active" id="adm-dashboard">
-          <div class="page-header"><div><h1>System Administration</h1><p>Monitor system infrastructure and manage user permissions.</p></div>
-          <div class="ph-actions"><button class="btn btn-dark" onclick="openModal('modal-config')">⚙ Config</button><button class="btn btn-amber" onclick="openModal('modal-create-user')">+ Create User</button></div></div>
-          <div class="stats-grid">
-            <div class="stat-card"><div class="stat-label">Active Users</div><div class="stat-value" id="adm-stat-users">4</div></div>
-            <div class="stat-card"><div class="stat-label">Total Reports</div><div class="stat-value" id="adm-stat-reports">0</div></div>
-            <div class="stat-card"><div class="stat-label">Work Orders</div><div class="stat-value blue" id="adm-stat-wo">0</div></div>
-            <div class="stat-card"><div class="stat-label">System Uptime</div><div class="stat-value green">99.9%</div></div>
+    </aside>
+
+    <!-- ── MAIN ────────────────────────────────────────── -->
+    <main class="main">
+            <div class="topbar">
+        <div class="topbar-left">
+          <button class="hamburger" onclick="toggleSidebar()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+            <div>
+              <span class="topbar-title" id="adm-teamname">&mdash;</span>
+            <div class="topbar-teamdesc" id="adm-teamdesc"></div>
           </div>
+        </div>
+
+        <div class="topbar-right">
+          <div class="topbar-user" style="cursor:default">
+            <div>
+              <div class="uname" id="adm-topname">&mdash;</div>
+              <div class="uemail" id="adm-topemail">&mdash;</div>
+            </div>
+            <div class="avatar av-red" id="adm-topav">A</div>
+          </div>
+          <div class="menu-wrap">
+            <button class="icon-btn" id="adm-gear" onclick="toggleSettingsMenu(event)" aria-label="Settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.33.4.6.73.76H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
+            <div class="menu" id="adm-settings-menu">
+              <button class="menu-item" onclick="openSettings('team')">Team Settings</button>
+              <button class="menu-item" onclick="openSettings('profile')">My Profile</button>
+            </div>
+          </div>
+        </div>
+        </div>
+
+      <div class="content">
+
+        <!-- ── DASHBOARD ─────────────────────────────── -->
+        <div class="view active" id="adm-dashboard">
+          <div class="page-header">
+            <div>
+              <h1>Team Administration</h1>
+              <!-- Team name comes from the server on every load and is
+                   written here by app.js — never hardcoded in markup. -->
+              <p id="adm-dash-sub">Loading team&hellip;</p>
+            </div>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-card"><div class="stat-label">Active Members</div><div class="stat-value" id="adm-stat-members">0</div></div>
+            <div class="stat-card"><div class="stat-label">Invitations Sent</div><div class="stat-value" id="adm-stat-invites">0</div></div>            
+            <div class="stat-card"><div class="stat-label">Awaiting a Role</div><div class="stat-value" id="adm-stat-unassigned">0</div></div>
+          </div>
+
           <div class="two-col">
             <div>
-              <div class="section-header"><div class="section-title">Recent System Activity</div></div>
-              <div class="widget"><div id="adm-events-list"><div class="empty-state"><p>No activity yet</p></div></div></div>
+              <div class="section-title">Recent Activity</div>
+              <div class="widget">
+                <div id="adm-events-list"><div class="empty-state"><p>No activity yet</p></div></div>
+              </div>
             </div>
             <div>
-              <div class="widget" style="background:#1a1a2e;border-color:rgba(245,158,11,.2)">
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-                  <div style="width:36px;height:36px;border-radius:8px;background:rgba(245,158,11,.15);display:flex;align-items:center;justify-content:center">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2" style="width:18px;height:18px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  </div>
-                  <div><div style="font-size:13px;font-weight:600;color:var(--text)">System Records</div><div style="font-size:10.5px;color:var(--amber);font-weight:600">AUTO SYNC</div></div>
-                </div>
-                <p style="font-size:12px;color:var(--muted);margin-bottom:14px">All inspection reports and work orders are stored and synchronized in real time.</p>
-                <button class="btn btn-dark" style="width:100%;justify-content:center" onclick="exportRecords()">Export System Records</button>
+              <div class="section-title">Add someone</div>
+              <div class="widget">
+                <p style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:14px">
+                  Email is the only way onto this team. Invite someone and pick
+                  their role — they set a password from the link and arrive ready
+                  to work.
+                </p>
+                <button class="btn btn-amber" style="width:100%;justify-content:center" onclick="switchView('admin','members')">Go to Members</button>
               </div>
             </div>
           </div>
         </div>
-        <div class="view" id="adm-users">
-          <div class="page-header"><div><h1>User Management</h1><p>Manage system users and access permissions.</p></div><button class="btn btn-amber" onclick="openModal('modal-create-user')">+ Create User</button></div>
-          <div class="user-dir">
-            <div class="user-dir-header"><div class="section-title">User Directory</div><input class="search-input" placeholder="Search name/email..." oninput="searchUsers(this.value)"/></div>
-            <div class="table-wrap" style="border:none;border-radius:0"><table><thead><tr><th>User Details</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody id="adm-user-table"></tbody></table></div>
+
+        <!-- ── MEMBERS ───────────────────────────────── -->
+        <div class="view" id="adm-members">
+          <div class="page-header">
+            <div>
+              <h1>Members</h1>
+              <p>You invite everyone on this team by email and set what each person does. Roles can be changed later.</p>
+            </div>
+            <div class="ph-actions">
+              <button class="btn btn-amber" onclick="openInviteModal()">Invite member</button>
+            </div>
+          </div>
+
+          <!-- People invited but not yet joined. Hidden when empty so an
+               established team isn't looking at a permanent blank panel. -->
+          <div class="widget" id="adm-invites-card" style="display:none">
+            <div class="widget-header">
+              <div class="widget-title">Invitations sent</div>
+            </div>
+            <div id="adm-invite-list"></div>
+          </div>
+
+                    <div class="widget" style="padding:0">
+            <div class="table-wrap" style="border:none;border-radius:0">
+              <table>
+                <thead><tr><th>Member</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead>
+                <tbody id="adm-member-table"></tbody>
+              </table>
+            </div>
+            <div class="mobile-card-list" id="adm-member-cards" style="padding:14px"></div>
           </div>
         </div>
+
+        <!-- ── ACTIVITY LOGS ─────────────────────────── -->
         <div class="view" id="adm-logs">
-          <div class="page-header"><div><h1>Audit Logs</h1><p>Complete activity trail for all system actions.</p></div><button class="btn btn-dark" onclick="clearLogs()">Clear Logs</button></div>
+          <div class="page-header">
+            <div><h1>Activity Logs</h1><p>Audit trail for this team.</p></div>
+            <div class="ph-actions">
+              <button class="btn btn-dark" onclick="exportRecords()">Export CSV</button>
+              <button class="btn btn-dark" onclick="clearLogs()">Clear Logs</button>
+            </div>
+          </div>
           <div class="widget">
             <div id="adm-logs-list"><div class="empty-state"><p>No logs yet</p></div></div>
           </div>
         </div>
+
       </div>
     </main>
   </div>
 </div>
 
-<!-- ══════════ MODALS ══════════ -->
-
-<!-- Create User (Admin) -->
-<div class="overlay" id="modal-create-user">
-  <div class="modal modal-sm">
-    <div class="modal-header"><div><h2>Create User</h2><p>Add a new system user account.</p></div><button class="btn-close" onclick="closeModal('modal-create-user')">×</button></div>
+<!-- ══ INVITE MEMBER MODAL ═══════════════════════════════
+     The role chosen here is written onto the invitation row, and
+     auth.php reads it from there when the link is opened. It is not
+     re-sent by the person accepting, so it cannot be swapped. -->
+<div class="overlay" id="modal-invite">
+  <div class="modal" style="max-width:440px">
+        <div class="modal-header">
+      <div>
+        <h2>Create a team member</h2>
+        <p>You enter who they are. They set their own password from the link.</p>
+      </div>
+      <button class="btn-close" onclick="closeModal('modal-invite')">×</button>
+    </div>
     <div class="modal-body">
-      <div class="form-group"><label>Full Name <span style="color:var(--red)">*</span></label><input class="form-control" id="cu-name" placeholder="Juan dela Cruz"/></div>
-      <div class="form-group"><label>Email <span style="color:var(--red)">*</span></label><input class="form-control" id="cu-email" type="email" placeholder="user@constructflow.com"/></div>
-      <div class="form-group"><label>System Role <span style="color:var(--red)">*</span></label>
-        <select class="form-control" id="cu-role">
-          <option value="field_inspector">Field Inspector</option>
+      <div class="two-col" style="grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label>First name</label>
+          <input class="form-control" id="inv-first" maxlength="60" placeholder="Juan" autocomplete="off"/>
+        </div>
+        <div class="form-group">
+          <label>Last name</label>
+          <input class="form-control" id="inv-last" maxlength="60" placeholder="Dela Cruz" autocomplete="off"/>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Email address</label>
+        <input class="form-control" type="email" id="inv-email" placeholder="name@example.com" autocomplete="off"/>
+      </div>
+
+      <div class="two-col" style="grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label>Birthdate</label>
+          <!-- app.js sets max to today at load, so a future date can't
+               be picked. teams.php validates it again regardless. -->
+          <input class="form-control" type="date" id="inv-birth"/>
+        </div>
+        <div class="form-group">
+          <label>Role on this team</label>
+          <select class="form-control" id="inv-role">
+            <option value="supervisor">Supervisor</option>
+            <option value="field_inspector">Field Inspector</option>
+            <option value="field_worker">Field Worker</option>
+            <option value="administrator">Administrator</option>
+            <option value="member">Member (no role yet)</option>
+          </select>
+        </div>
+      </div>
+
+      <p style="font-size:12px;color:var(--muted);line-height:1.6">
+        The invitation expires in 72 hours. They can correct their name or
+        birthdate when they set up their account, and you can change their
+        role afterwards.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-invite')">Cancel</button>
+      <button class="btn btn-amber" id="inv-send-btn" onclick="sendInvite()">Send invitation</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ASSIGN ROLE MODAL ═════════════════════════════════
+     All four roles appear here: membership is an administrator's job
+     in full, including correcting a role that was set at invite time.
+     A supervisor runs the work, not the roster. -->
+<div class="overlay" id="modal-assign-role">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div><h2>Change Role</h2><p id="ar-subtitle">&mdash;</p></div>
+      <button class="btn-close" onclick="closeModal('modal-assign-role')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>New role</label>
+        <select class="form-control" id="ar-role">
           <option value="supervisor">Supervisor</option>
+          <option value="field_inspector">Field Inspector</option>
           <option value="field_worker">Field Worker</option>
           <option value="administrator">Administrator</option>
+          <option value="member">Member (no role)</option>
         </select>
       </div>
-      <div class="form-group"><label>Password <span style="color:var(--red)">*</span></label><input class="form-control" id="cu-pass" type="password" placeholder="••••••••"/></div>
     </div>
-    <div class="modal-footer"><button class="btn btn-dark" onclick="closeModal('modal-create-user')">Cancel</button><button class="btn btn-amber" onclick="createUser()">Create User</button></div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-assign-role')">Cancel</button>
+      <button class="btn btn-amber" onclick="confirmAssignRole()">Save Role</button>
+    </div>
   </div>
 </div>
 
-<!-- Config (Admin) -->
-<div class="overlay" id="modal-config">
-  <div class="modal modal-sm">
-    <div class="modal-header"><div><h2>System Configuration</h2></div><button class="btn-close" onclick="closeModal('modal-config')">×</button></div>
-    <div class="modal-body">
-      <div class="form-group"><label>System Name</label><input class="form-control" value="ConstructFlow v1.0"/></div>
-      <div class="form-group"><label>Organization</label><input class="form-control" value="Tarlac State University"/></div>
-      <div class="form-group"><label>Report ID Prefix</label><input class="form-control" value="REP"/></div>
-      <div class="form-group"><label>Work Order Prefix</label><input class="form-control" value="WO"/></div>
-      <div class="form-group"><label>Notify Supervisor on New Report</label>
-        <select class="form-control"><option>Yes – Always</option><option>Only for High/Critical</option><option>No</option></select>
-      </div>
-    </div>
-    <div class="modal-footer"><button class="btn btn-dark" onclick="closeModal('modal-config')">Cancel</button><button class="btn btn-amber" onclick="toast('Settings saved','success');closeModal('modal-config')">Save Settings</button></div>
-  </div>
-</div>
-
-<!-- Profile Modal -->
+<!-- ══ PROFILE MODAL ═════════════════════════════════════ -->
 <div class="overlay" id="modal-profile">
-  <div class="modal modal-sm">
-    <div class="modal-header"><div><h2>My Profile</h2></div><button class="btn-close" onclick="closeModal('modal-profile')">×</button></div>
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2>My Profile</h2><p>Your account details.</p></div>
+      <button class="btn-close" onclick="closeModal('modal-profile')">×</button>
+    </div>
     <div class="modal-body">
-      <div style="text-align:center;margin-bottom:20px">
+      <div style="text-align:center;margin-bottom:18px">
         <div class="avatar" id="prof-av" style="width:64px;height:64px;font-size:24px;margin:0 auto 12px"></div>
         <div style="font-size:16px;font-weight:700;color:var(--text)" id="prof-name"></div>
         <div style="font-size:12px;color:var(--muted)" id="prof-role"></div>
       </div>
       <div class="form-group"><label>Full Name</label><input class="form-control" id="prof-name-inp"/></div>
-      <div class="form-group"><label>Email</label><input class="form-control" id="prof-email-inp" disabled/></div>
+      <div class="form-group">
+        <label>Email</label>
+        <input class="form-control" id="prof-email-inp" disabled/>
+        <p style="font-size:11.5px;color:var(--muted);margin-top:5px">
+          Your email identifies your account and cannot be changed here.
+        </p>
+      </div>
+      <p style="font-size:11.5px;color:var(--muted);margin:-4px 0 14px">
+        Your role is set through team management, not from this form.
+      </p>
+
+      <div class="section-title">Change password</div>
       <div class="form-group"><label>Current Password</label><input class="form-control" type="password" id="prof-curpass" placeholder="Required only if changing password"/></div>
       <div class="form-group"><label>New Password</label><input class="form-control" type="password" id="prof-pass" placeholder="Leave blank to keep current"/></div>
+      <p style="font-size:11.5px;color:var(--muted)">Password must contain at least 8 characters, 1 uppercase letter, and 1 number.</p>
     </div>
-    <div class="modal-footer"><button class="btn btn-dark" onclick="closeModal('modal-profile')">Cancel</button><button class="btn btn-amber" onclick="saveProfile()">Save Changes</button></div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-profile')">Cancel</button>
+      <button class="btn btn-amber" onclick="saveProfile()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TEAM SETTINGS MODAL ═══════════════════════════════ -->
+<div class="overlay" id="modal-team">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2>Team Settings</h2><p id="adm-team-meta">&mdash;</p></div>
+      <button class="btn-close" onclick="closeModal('modal-team')">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="text-align:center;margin-bottom:18px">
+        <div style="font-size:16px;font-weight:700;color:var(--text)" id="adm-team-name">&mdash;</div>
+      </div>
+
+      <div class="form-group">
+        <label>Team name</label>
+        <input class="form-control" id="adm-team-name-inp" maxlength="150"/>
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <input class="form-control" id="adm-team-desc-inp" maxlength="500" placeholder="Optional"/>
+      </div>
+      <p style="font-size:11.5px;color:var(--muted);margin:-4px 0 14px">
+        Only administrators can rename the team.
+      </p>
+
+      <div class="section-title">Leaving this team</div>
+      <p style="font-size:11.5px;color:var(--muted);line-height:1.6">
+        Nobody removes themselves, including administrators. Ask another
+        administrator to remove you from the Members page. If you are the
+        only administrator, make someone else one first — a team is never
+        allowed to be left without one.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-team')">Cancel</button>
+      <button class="btn btn-amber" onclick="saveTeamDetails()">Save Changes</button>
+    </div>
   </div>
 </div>
 

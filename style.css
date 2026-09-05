@@ -1,7 +1,11 @@
 /* ═══════════════════════════════════════════════════════
    ConstructFlow — Stylesheet
-   Shared across login.html, inspector.html, supervisor.html,
-   fieldworker.html and admin.html
+   Shared across 
+   login.html, 
+   inspector.html, 
+   supervisor.html,
+   fieldworker.html 
+   and admin.html
    ═══════════════════════════════════════════════════════ */
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -34,14 +38,18 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:
 .btn-login{margin-top:8px;padding:12px;background:#1a1a2e;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:background .2s;width:100%}
 .btn-login:hover{background:#2d3561}
 .login-footer{margin-top:20px;font-size:11.5px;color:#b0bec5}
+.login-brand{display:flex;flex-direction:column;align-items:center;text-decoration:none;color:inherit}
+.login-brand:hover .login-title{color:var(--amber)}
+.login-home{color:#78909c;text-decoration:none;font-weight:600}
+.login-home:hover{color:var(--amber);text-decoration:underline}
 .login-err{color:#ef4444;font-size:12.5px;text-align:center;display:none;margin-top:-8px}
 
 /* ═══ DASHBOARD LAYOUT ═══ */
 .dash{display:flex;width:100%;height:100vh;overflow:hidden}
 .sidebar{width:var(--sidebar-w);min-width:var(--sidebar-w);background:var(--sidebar);display:flex;flex-direction:column;border-right:1px solid var(--border)}
 .sidebar-logo{padding:18px 16px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
-.logo-badge{width:34px;height:34px;border-radius:8px;background:var(--amber);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#1a1a2e;flex-shrink:0}
-.logo-name{font-weight:700;font-size:13.5px;color:var(--text)}
+.logo-badge{width:34px;height:34px;border-radius:8px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
+.logo-badge img{width:26px;height:26px;display:block}.logo-name{font-weight:700;font-size:13.5px;color:var(--text)}
 .sidebar-user{padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);cursor:pointer}
 .sidebar-user:hover{background:rgba(255,255,255,.03)}
 .avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
@@ -66,10 +74,28 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .topbar{padding:14px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:var(--bg);flex-shrink:0;gap:12px}
 .topbar-left{display:flex;align-items:center;gap:10px}
-.topbar-title{font-size:13px;color:var(--muted)}
+.topbar-title{font-size:15px;font-weight:600;color:var(--text)}
+.topbar-teamdesc{font-size:11.5px;color:var(--muted);line-height:1.3;margin-top:1px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .topbar-user{display:flex;align-items:center;gap:10px;cursor:pointer}
 .topbar-user .uname{font-size:13px;font-weight:500;color:var(--text);text-align:right}
 .topbar-user .uemail{font-size:11px;color:var(--muted);text-align:right}
+.topbar-right{display:flex;align-items:center;gap:14px}
+.icon-btn{background:none;border:none;cursor:pointer;color:var(--muted);padding:6px;border-radius:8px;display:flex;transition:all .15s}
+.icon-btn:hover{background:var(--card);color:var(--text)}
+.icon-btn svg{width:19px;height:19px}
+.menu-wrap{position:relative}
+.menu{
+  display:none;position:absolute;top:calc(100% + 8px);right:0;z-index:50;
+  min-width:170px;background:var(--card);border:1px solid var(--border);
+  border-radius:10px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.45);
+}
+.menu.open{display:block}
+.menu-item{
+  display:block;width:100%;text-align:left;background:none;border:none;
+  cursor:pointer;color:var(--text);font-size:13px;font-family:inherit;
+  padding:9px 11px;border-radius:7px;
+}
+.menu-item:hover{background:var(--bg);color:var(--amber)}
 .content{flex:1;overflow-y:auto;padding:24px}
 
 /* VIEW SWITCHER */
@@ -90,12 +116,8 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:
 .btn-amber:hover{background:var(--amber-dk)}
 .btn-dark{background:var(--card);color:var(--text);border:1px solid var(--border)}
 .btn-dark:hover{background:var(--border)}
-.btn-outline{background:transparent;color:var(--muted);border:1px solid var(--border)}
-.btn-outline:hover{color:var(--text);border-color:var(--muted)}
-.btn-red{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.2)}
-.btn-red:hover{background:rgba(239,68,68,.2)}
-.btn-green{background:rgba(34,197,94,.12);color:#4ade80;border:1px solid rgba(34,197,94,.2)}
-.btn-green:hover{background:rgba(34,197,94,.2)}
+.btn-danger{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.2)}
+.btn-danger:hover{background:rgba(239,68,68,.2)}
 .btn-sm{padding:6px 12px;font-size:12px}
 
 /* STATS */
@@ -107,7 +129,6 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:
 .stat-value.green{color:var(--green)}
 .stat-value.red{color:var(--red)}
 .stat-value.blue{color:var(--blue)}
-.stat-meta{font-size:11px;color:var(--muted);margin-top:6px}
 
 /* SECTION */
 .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
@@ -135,15 +156,12 @@ td.issue{font-weight:500;color:var(--text)}
 .badge-assigned{background:rgba(59,130,246,.12);color:#60a5fa}
 .badge-inprogress{background:rgba(245,158,11,.12);color:var(--amber)}
 .badge-completed{background:rgba(34,197,94,.12);color:#4ade80}
-.badge-resolved{background:rgba(34,197,94,.12);color:#4ade80}
 
 .status{display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:500;white-space:nowrap}
 .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .dot-green{background:var(--green)}
 .dot-amber{background:var(--amber)}
-.dot-red{background:var(--red)}
 .dot-blue{background:var(--blue)}
-.dot-muted{background:var(--muted)}
 .action-link{color:var(--amber);font-size:12px;font-weight:600;cursor:pointer;text-transform:uppercase;letter-spacing:.3px;background:none;border:none;font-family:'Inter',sans-serif;padding:0}
 .action-link:hover{text-decoration:underline}
 
@@ -151,9 +169,6 @@ td.issue{font-weight:500;color:var(--text)}
 .two-col{display:grid;grid-template-columns:1fr 320px;gap:16px}
 
 /* DARK CARD */
-.dark-card{background:#1a1a2e;border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px}
-.dark-card h3{font-size:13.5px;font-weight:600;color:var(--text);margin-bottom:4px}
-.dark-card p{font-size:12px;color:var(--muted)}
 
 /* REPORT CARD (supervisor) */
 .report-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px}
@@ -173,13 +188,6 @@ td.issue{font-weight:500;color:var(--text)}
 .widget{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px}
 .widget-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
 .widget-title{font-size:13px;font-weight:600;color:var(--text)}
-.progress-row{margin-bottom:12px}
-.progress-top{display:flex;justify-content:space-between;margin-bottom:5px;font-size:12px;color:var(--muted)}
-.progress-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
-.progress-fill{height:100%;border-radius:3px;transition:width .4s}
-.fill-amber{background:var(--amber)}
-.fill-red{background:var(--red)}
-.fill-green{background:var(--green)}
 .wo-list{display:flex;flex-direction:column;gap:8px}
 .wo-row{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--label)}
 .wo-row .count{font-weight:700;color:var(--text)}
@@ -193,16 +201,9 @@ td.issue{font-weight:500;color:var(--text)}
 .queue-card-foot{display:flex;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:wrap;gap:8px}
 
 /* TASK PANEL */
-.task-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:200px;text-align:center}
-.task-panel svg{width:36px;height:36px;color:var(--amber);margin-bottom:14px;opacity:.7}
-.task-panel p{font-size:13px;color:var(--muted);line-height:1.5}
 
 /* ADMIN */
-.user-dir{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:14px}
-.user-dir-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);gap:10px}
-.search-input{padding:8px 12px;border-radius:7px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-size:12.5px;outline:none;width:200px;font-family:'Inter',sans-serif}
-.search-input::placeholder{color:var(--muted)}
-.chip{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10.5px;font-weight:700;letter-spacing:.3px}
+.chip{display:inline-block;padding:3px 9px;border-radius:4px;font-size:10.5px;font-weight:700;letter-spacing:.3px;line-height:1.5;white-space:nowrap}
 .chip-admin{background:rgba(239,68,68,.12);color:#f87171}
 .chip-sup{background:rgba(59,130,246,.12);color:#60a5fa}
 .chip-insp{background:rgba(34,197,94,.12);color:#4ade80}
@@ -212,13 +213,20 @@ td.issue{font-weight:500;color:var(--text)}
 .event-name{font-size:13px;font-weight:600;color:var(--text)}
 .event-by{font-size:11.5px;color:var(--muted)}
 .event-time{font-size:11.5px;color:var(--muted);white-space:nowrap}
-.dot-active{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block}
 
 /* FILTER BUTTONS */
 .reports-filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
 .filter-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif}
 .filter-btn:hover{color:var(--text)}
 .filter-btn.active{background:var(--amber);color:#1a1a2e;border-color:var(--amber);font-weight:600}
+
+/* NOTICE BOX*/
+.notice-box{
+  background:rgba(245,158,11,.10);
+  border:1px solid rgba(245,158,11,.28);
+  border-radius:8px;padding:11px 14px;margin-bottom:14px;
+  font-size:12.5px;line-height:1.55;color:#fcd34d;
+}
 
 /* EMPTY STATE */
 .empty-state{padding:48px 24px;text-align:center;color:var(--muted)}
@@ -277,9 +285,20 @@ select.form-control{-webkit-appearance:none;cursor:pointer}
 .lightbox-arrow:hover{background:rgba(255,255,255,.22)}
 .lightbox-arrow.prev{left:16px}
 .lightbox-arrow.next{right:16px}
+
 @media(max-width:640px){
   .lightbox-slide{padding:0 12px}
   .lightbox-arrow{width:38px;height:38px}
+}
+
+@media(min-width:641px) and (max-width:1024px){
+  .sidebar{width:210px;min-width:210px}
+  .content{padding:18px}
+  .two-col{grid-template-columns:1fr}
+  .stats-grid{grid-template-columns:repeat(2,1fr)}
+  .topbar{padding:12px 18px}
+  .topbar-teamdesc{max-width:180px}
+  .topbar-user .uemail{display:none}
 }
 .detail-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)}
 .detail-row:last-child{border-bottom:none}
@@ -323,7 +342,6 @@ select.form-control{-webkit-appearance:none;cursor:pointer}
   .stats-grid{grid-template-columns:repeat(2,1fr);gap:10px}
   .stat-value{font-size:22px}
   .page-header{flex-direction:column;align-items:flex-start;gap:10px;margin-bottom:18px}
-  .page-header .btn,.page-header .btn-outline,.ph-actions .btn{width:100%;justify-content:center}
   .ph-actions{width:100%}
   .table-wrap table{display:none}
   .mobile-card-list{display:block}
@@ -337,8 +355,6 @@ select.form-control{-webkit-appearance:none;cursor:pointer}
   .form-row{grid-template-columns:1fr}
   .reports-filter{gap:6px}
   .filter-btn{padding:5px 10px;font-size:11.5px}
-  .user-dir-header{flex-direction:column;align-items:flex-start}
-  .search-input{width:100%}
   .toast-container{bottom:16px;right:12px;left:12px}
   .toast{min-width:0;width:100%}
 }

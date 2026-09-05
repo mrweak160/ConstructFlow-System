@@ -1,28 +1,32 @@
 <?php
 // ConstructFlow — Inspection Tasks API
-// Handles: create task, list tasks, get single task
+// create · list · detail · close
+//
 
 require_once __DIR__ . '/../config/helpers.php';
-setCORSHeaders();
 startSecureSession();
 
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 
-// ── POST /api/tasks.php?action=create ──────────────────────────
-// Supervisor creates an inspection task and assigns it to a
-// specific Field Inspector. A Supervisor may assign multiple
-// tasks to the same Inspector — no restriction on open task count.
+// Every POST here is authenticated, so all of them require a token.
+if ($method === 'POST') {
+    verifyCsrf();
+}
+
+// ── POST ?action=create ──────────────────────────────────────
 // Body: { assigned_to, title, description, location_text, due_date }
 if ($method === 'POST' && $action === 'create') {
-    $user = requireRole('supervisor');
-    $body = getBody();
+    $m      = requireTeamRole('supervisor');
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
+    $body   = getBody();
 
     $assignedTo    = (int)($body['assigned_to'] ?? 0);
-    $title         = sanitize($body['title'] ?? '');
-    $description   = sanitize($body['description'] ?? '');
-    $location_text = sanitize($body['location_text'] ?? '');
-    $due_date      = sanitize($body['due_date'] ?? '');
+    $title         = clean($body['title'] ?? '');
+    $description   = clean($body['description'] ?? '');
+    $location_text = clean($body['location_text'] ?? '');
+    $due_date      = clean($body['due_date'] ?? '');
 
     if (!$assignedTo || !$title || !$location_text) {
         json_response(false, 'Assigned inspector, title, and location are required.', [], 400);
@@ -30,36 +34,31 @@ if ($method === 'POST' && $action === 'create') {
 
     $db = getDB();
 
-    // Verify the assigned user is an active field inspector
-    $inspector = $db->prepare('SELECT * FROM Users WHERE user_id = ? AND role = "field_inspector" AND is_active = 1');
-    $inspector->execute([$assignedTo]);
-    if (!$inspector->fetch()) {
-        json_response(false, 'Assigned user is not an active field inspector.', [], 400);
+    // The assignee must be a field inspector IN THIS TEAM. Checking
+    // only the role would let a supervisor assign work to an inspector
+    // belonging to somebody else's team.
+    $ins = $db->prepare(
+        'SELECT 1 FROM TeamMembers tm
+         JOIN Users u ON tm.user_id = u.user_id
+         WHERE tm.team_id = ? AND tm.user_id = ?
+           AND tm.role = "field_inspector" AND tm.status = "active" AND u.is_active = 1'
+    );
+    $ins->execute([$teamId, $assignedTo]);
+    if (!$ins->fetch()) {
+        json_response(false, 'That person is not an active field inspector in this team.', [], 400);
     }
 
-    $code = generateTaskCode();
+    $code = generateTaskCode($teamId);
 
-    $stmt = $db->prepare(
+    $db->prepare(
         'INSERT INTO InspectionTasks
-         (task_code, created_by, assigned_to, title, description, location_text, due_date)
-         VALUES (?, ?, ?, ?, ?, ?, ?)'
-    );
-    $stmt->execute([
-        $code,
-        $user['user_id'],
-        $assignedTo,
-        $title,
-        $description,
-        $location_text,
-        $due_date ?: null,
-    ]);
+         (team_id, task_code, created_by, assigned_to, title, description, location_text, due_date)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    )->execute([$teamId, $code, $actor['user_id'], $assignedTo, $title, $description, $location_text, $due_date ?: null]);
     $taskId = (int)$db->lastInsertId();
 
-    logActivity(
-        $user['user_id'], 'create_task',
-        'task', $taskId,
-        "{$user['name']} created and assigned inspection task $code."
-    );
+    logActivity($actor['user_id'], 'create_task', 'task', $taskId,
+        "{$actor['name']} created and assigned inspection task $code.", $teamId);
 
     json_response(true, 'Inspection task created and assigned successfully.', [
         'task_id'   => $taskId,
@@ -67,29 +66,31 @@ if ($method === 'POST' && $action === 'create') {
     ]);
 }
 
-// ── GET /api/tasks.php?action=list ──────────────────────────────
-// Returns tasks based on role:
-//   field_inspector → only tasks assigned to them
-//   supervisor / administrator → all tasks
+// ── GET ?action=list ─────────────────────────────────────────
+// field_inspector → only tasks assigned to them
+// supervisor      → every task in their team
 // Optional filter: ?status=assigned
 if ($method === 'GET' && $action === 'list') {
-    $user   = requireAuth();
+    $m      = requireTeam();
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
     $db     = getDB();
     $status = $_GET['status'] ?? '';
 
-    $where  = [];
-    $params = [];
+    // team_id is the first condition and is never optional.
+    $where  = ['t.team_id = ?'];
+    $params = [$teamId];
 
-    if ($user['role'] === 'field_inspector') {
+    if ($m['role'] === 'field_inspector') {
         $where[]  = 't.assigned_to = ?';
-        $params[] = $user['user_id'];
+        $params[] = $actor['user_id'];
     }
     if ($status) {
         $where[]  = 't.status = ?';
         $params[] = $status;
     }
 
-    $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+    $whereSQL = 'WHERE ' . implode(' AND ', $where);
 
     $stmt = $db->prepare(
         "SELECT t.*,
@@ -108,13 +109,16 @@ if ($method === 'GET' && $action === 'list') {
     json_response(true, 'Tasks retrieved.', ['tasks' => $stmt->fetchAll()]);
 }
 
-// ── GET /api/tasks.php?action=detail&id=1 ───────────────────────
-// Returns a single task with any linked report.
+// ── GET ?action=detail&id=1 ──────────────────────────────────
 if ($method === 'GET' && $action === 'detail') {
-    $user   = requireAuth();
+    $m      = requireTeam();
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
     $taskId = (int)($_GET['id'] ?? 0);
     $db     = getDB();
 
+    // team_id in the WHERE clause is what stops ID enumeration across
+    // teams: a task belonging to another team simply is not found.
     $stmt = $db->prepare(
         'SELECT t.*,
                 u_creator.name  AS created_by_name,
@@ -122,22 +126,20 @@ if ($method === 'GET' && $action === 'detail') {
          FROM InspectionTasks t
          JOIN Users u_creator  ON t.created_by  = u_creator.user_id
          JOIN Users u_assignee ON t.assigned_to = u_assignee.user_id
-         WHERE t.task_id = ?'
+         WHERE t.task_id = ? AND t.team_id = ?'
     );
-    $stmt->execute([$taskId]);
+    $stmt->execute([$taskId, $teamId]);
     $task = $stmt->fetch();
 
     if (!$task) {
         json_response(false, 'Task not found.', [], 404);
     }
-
-    // Field Inspector can only view their own assigned tasks
-    if ($user['role'] === 'field_inspector' && $task['assigned_to'] != $user['user_id']) {
+    if ($m['role'] === 'field_inspector' && $task['assigned_to'] != $actor['user_id']) {
         json_response(false, 'Access denied.', [], 403);
     }
 
-    $report = $db->prepare('SELECT * FROM InspectionReports WHERE task_id = ?');
-    $report->execute([$taskId]);
+    $report = $db->prepare('SELECT * FROM InspectionReports WHERE task_id = ? AND team_id = ?');
+    $report->execute([$taskId, $teamId]);
 
     json_response(true, 'Task detail retrieved.', [
         'task'   => $task,
@@ -145,21 +147,22 @@ if ($method === 'GET' && $action === 'detail') {
     ]);
 }
 
-// ── POST /api/tasks.php?action=close ─────────────────────────
-// Supervisor reviews the submitted report and closes the task.
+// ── POST ?action=close ───────────────────────────────────────
+// Body: { task_id }
 if ($method === 'POST' && $action === 'close') {
-    $user = requireRole('supervisor');
-    $body = getBody();
-    $taskId = (int)($body['task_id'] ?? 0);
+    $m      = requireTeamRole('supervisor');
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
+    $taskId = (int)(getBody()['task_id'] ?? 0);
 
     if (!$taskId) {
         json_response(false, 'Task ID is required.', [], 400);
     }
 
-    $db = getDB();
-    $task = $db->prepare('SELECT * FROM InspectionTasks WHERE task_id = ?');
-    $task->execute([$taskId]);
-    $t = $task->fetch();
+    $db   = getDB();
+    $stmt = $db->prepare('SELECT * FROM InspectionTasks WHERE task_id = ? AND team_id = ?');
+    $stmt->execute([$taskId, $teamId]);
+    $t = $stmt->fetch();
 
     if (!$t) {
         json_response(false, 'Task not found.', [], 404);
@@ -168,10 +171,11 @@ if ($method === 'POST' && $action === 'close') {
         json_response(false, 'Only submitted tasks can be closed.', [], 400);
     }
 
-    $db->prepare('UPDATE InspectionTasks SET status = "closed" WHERE task_id = ?')
-       ->execute([$taskId]);
+    $db->prepare('UPDATE InspectionTasks SET status = "closed" WHERE task_id = ? AND team_id = ?')
+       ->execute([$taskId, $teamId]);
 
-    logActivity($user['user_id'], 'close_task', 'task', $taskId, "{$user['name']} reviewed and closed task {$t['task_code']}.");
+    logActivity($actor['user_id'], 'close_task', 'task', $taskId,
+        "{$actor['name']} reviewed and closed task {$t['task_code']}.", $teamId);
 
     json_response(true, 'Task closed successfully.');
 }

@@ -1,41 +1,45 @@
 <?php
-// ConstructFlow — Inspection Reports API
-// Handles: submit report, list reports, get single report
 
 require_once __DIR__ . '/../config/helpers.php';
-setCORSHeaders();
 startSecureSession();
 
 $method = $_SERVER['REQUEST_METHOD'];
 $action = $_GET['action'] ?? '';
 
-// ── POST /api/reports.php?action=submit ───────────────────────
-// Field Inspector submits a new inspection report.
-// Multipart form: title, issue_type, description, location_text,
-//                 latitude, longitude, severity, photo (file)
+// Every POST here is authenticated, so all of them require a token.
+if ($method === 'POST') {
+    verifyCsrf();
+}
+
+// ── POST ?action=submit ──────────────────────────────────────
+// Multipart: task_id, title, issue_type, description, location_text,
+//            latitude, longitude, severity, photos[]
 if ($method === 'POST' && $action === 'submit') {
-    $user = requireRole('field_inspector');
-    $body = $_POST; // multipart for photo upload
+    $m      = requireTeamRole('field_inspector');
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
+    $body   = $_POST;   // multipart, for the photo upload
 
     $taskId        = (int)($body['task_id'] ?? 0);
-    $title         = sanitize($body['title'] ?? '');
-    $issue_type    = sanitize($body['issue_type'] ?? '');
-    $description   = sanitize($body['description'] ?? '');
-    $location_text = sanitize($body['location_text'] ?? '');
-    $latitude      = isset($body['latitude'])  ? (float)$body['latitude']  : null;
-    $longitude     = isset($body['longitude']) ? (float)$body['longitude'] : null;
-    $severity      = in_array($body['severity'] ?? '', ['low','moderate','high','critical'])
+    $title         = clean($body['title'] ?? '');
+    $issue_type    = clean($body['issue_type'] ?? '');
+    $description   = clean($body['description'] ?? '');
+    $location_text = clean($body['location_text'] ?? '');
+    $latitude      = isset($body['latitude'])  && $body['latitude']  !== '' ? (float)$body['latitude']  : null;
+    $longitude     = isset($body['longitude']) && $body['longitude'] !== '' ? (float)$body['longitude'] : null;
+    $severity      = in_array($body['severity'] ?? '', ['low','moderate','high','critical'], true)
                      ? $body['severity'] : 'low';
 
-    if (!$taskId || !$title || !$description || !$location_text) {
-        json_response(false, 'A valid assigned task, title, description, and location are required.', [], 400);
+
+    if (!$taskId || !$title || !$issue_type || !$description || !$location_text) {
+        json_response(false, 'A valid assigned task, title, issue type, description, and location are required.', [], 400);
     }
 
     $db = getDB();
 
-    // Verify the task exists, belongs to this inspector, and hasn't already been submitted
-    $task = $db->prepare('SELECT * FROM InspectionTasks WHERE task_id = ? AND assigned_to = ?');
-    $task->execute([$taskId, $user['user_id']]);
+    // The task must be in this team AND assigned to this inspector.
+    $task = $db->prepare('SELECT * FROM InspectionTasks WHERE task_id = ? AND team_id = ? AND assigned_to = ?');
+    $task->execute([$taskId, $teamId, $actor['user_id']]);
     $t = $task->fetch();
 
     if (!$t) {
@@ -45,52 +49,33 @@ if ($method === 'POST' && $action === 'submit') {
         json_response(false, 'A report has already been submitted for this task.', [], 400);
     }
 
-    $code = generateReportCode();
+    $code = generateReportCode($teamId);
 
-    $stmt = $db->prepare(
+    $db->prepare(
         'INSERT INTO InspectionReports
-         (report_code, task_id, submitted_by, title, issue_type, description,
+         (team_id, report_code, task_id, submitted_by, title, issue_type, description,
           location_text, latitude, longitude, severity)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    );
-    $stmt->execute([
-        $code,
-        $taskId,
-        $user['user_id'],
-        $title,
-        $issue_type,
-        $description,
-        $location_text,
-        $latitude,
-        $longitude,
-        $severity,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )->execute([
+        $teamId, $code, $taskId, $actor['user_id'], $title, $issue_type,
+        $description, $location_text, $latitude, $longitude, $severity,
     ]);
     $reportId = (int)$db->lastInsertId();
 
-    // Mark the task as submitted — it stays open until the Supervisor reviews and closes it
-    $db->prepare('UPDATE InspectionTasks SET status = "submitted" WHERE task_id = ?')
-       ->execute([$taskId]);
+    $db->prepare('UPDATE InspectionTasks SET status = "submitted" WHERE task_id = ? AND team_id = ?')
+       ->execute([$taskId, $teamId]);
 
-    // Handle photo upload(s) if provided — supports multiple photos per report
-    $photoPaths = handleMultiplePhotoUploads('photos', $reportId);
-    foreach ($photoPaths as $photoPath) {
+    // Photo extensions come from the detected MIME type, never from
+    // the uploaded filename (see handleMultiplePhotoUploads).
+    foreach (handleMultiplePhotoUploads('photos', 'REP', $reportId) as $photoPath) {
         $db->prepare(
             'INSERT INTO PhotoEvidence (report_id, file_path, file_name, latitude, longitude)
              VALUES (?, ?, ?, ?, ?)'
-        )->execute([
-            $reportId,
-            $photoPath,
-            basename($photoPath),
-            $latitude,
-            $longitude,
-        ]);
+        )->execute([$reportId, $photoPath, basename($photoPath), $latitude, $longitude]);
     }
 
-    logActivity(
-        $user['user_id'], 'submit_report',
-        'report', $reportId,
-        "{$user['name']} submitted inspection report $code."
-    );
+    logActivity($actor['user_id'], 'submit_report', 'report', $reportId,
+        "{$actor['name']} submitted inspection report $code.", $teamId);
 
     json_response(true, 'Inspection report submitted successfully.', [
         'report_id'   => $reportId,
@@ -98,35 +83,33 @@ if ($method === 'POST' && $action === 'submit') {
     ]);
 }
 
-// ── GET /api/reports.php?action=list ─────────────────────────
-// Returns reports based on role:
-//   field_inspector → own reports only
-//   supervisor      → all pending/assigned reports
-//   administrator   → all reports
-// Optional filters: ?severity=high&status=pending
+// ── GET ?action=list ─────────────────────────────────────────
+// field_inspector → own reports only
+// supervisor      → all reports in the team
+// Optional: ?severity=high&status=pending
 if ($method === 'GET' && $action === 'list') {
-    $user     = requireAuth();
-    $db       = getDB();
-    $severity = $_GET['severity'] ?? '';
-    $status   = $_GET['status']   ?? '';
+    $m      = requireTeam();
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
+    $db     = getDB();
 
-    $where  = [];
-    $params = [];
+    $where  = ['r.team_id = ?'];
+    $params = [$teamId];
 
-    if ($user['role'] === 'field_inspector') {
+    if ($m['role'] === 'field_inspector') {
         $where[]  = 'r.submitted_by = ?';
-        $params[] = $user['user_id'];
+        $params[] = $actor['user_id'];
     }
-    if ($severity) {
+    if ($sev = ($_GET['severity'] ?? '')) {
         $where[]  = 'r.severity = ?';
-        $params[] = $severity;
+        $params[] = $sev;
     }
-    if ($status) {
+    if ($st = ($_GET['status'] ?? '')) {
         $where[]  = 'r.status = ?';
-        $params[] = $status;
+        $params[] = $st;
     }
 
-    $whereSQL = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+    $whereSQL = 'WHERE ' . implode(' AND ', $where);
 
     $stmt = $db->prepare(
         "SELECT r.*,
@@ -138,15 +121,15 @@ if ($method === 'GET' && $action === 'list') {
          ORDER BY r.submitted_at DESC"
     );
     $stmt->execute($params);
-    $reports = $stmt->fetchAll();
 
-    json_response(true, 'Reports retrieved.', ['reports' => $reports]);
+    json_response(true, 'Reports retrieved.', ['reports' => $stmt->fetchAll()]);
 }
 
-// ── GET /api/reports.php?action=detail&id=1 ───────────────────
-// Returns a single report with photos and linked work order.
+// ── GET ?action=detail&id=1 ──────────────────────────────────
 if ($method === 'GET' && $action === 'detail') {
-    $user     = requireAuth();
+    $m        = requireTeam();
+    $actor    = currentUser();
+    $teamId   = (int)$m['team_id'];
     $reportId = (int)($_GET['id'] ?? 0);
     $db       = getDB();
 
@@ -154,27 +137,29 @@ if ($method === 'GET' && $action === 'detail') {
         'SELECT r.*, u.name AS submitted_by_name
          FROM InspectionReports r
          JOIN Users u ON r.submitted_by = u.user_id
-         WHERE r.report_id = ?'
+         WHERE r.report_id = ? AND r.team_id = ?'
     );
-    $stmt->execute([$reportId]);
+    $stmt->execute([$reportId, $teamId]);
     $report = $stmt->fetch();
 
     if (!$report) {
         json_response(false, 'Report not found.', [], 404);
     }
+    // An inspector sees only their own submissions.
+    if ($m['role'] === 'field_inspector' && $report['submitted_by'] != $actor['user_id']) {
+        json_response(false, 'Access denied.', [], 403);
+    }
 
-    // Get photos
     $photos = $db->prepare('SELECT * FROM PhotoEvidence WHERE report_id = ?');
     $photos->execute([$reportId]);
 
-    // Get linked work order if any
     $wo = $db->prepare(
         'SELECT w.*, u.name AS assigned_to_name
          FROM WorkOrders w
          LEFT JOIN Users u ON w.assigned_to = u.user_id
-         WHERE w.report_id = ?'
+         WHERE w.report_id = ? AND w.team_id = ?'
     );
-    $wo->execute([$reportId]);
+    $wo->execute([$reportId, $teamId]);
 
     json_response(true, 'Report detail retrieved.', [
         'report'     => $report,
@@ -183,51 +168,44 @@ if ($method === 'GET' && $action === 'detail') {
     ]);
 }
 
-// ── GET /api/reports.php?action=stats ────────────────────────
-// Dashboard stats for Field Inspector.
+// ── GET ?action=stats ────────────────────────────────────────
+// Dashboard counters. Rewritten as one grouped query rather than the
+// previous four separate statements with conditionally-built WHERE
+// fragments, which were fragile and easy to get wrong.
 if ($method === 'GET' && $action === 'stats') {
-    $user = requireRole('field_inspector', 'supervisor', 'administrator');
-    $db   = getDB();
+    $m      = requireTeamRole('field_inspector', 'supervisor');
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
+    $db     = getDB();
 
-    $where  = $user['role'] === 'field_inspector' ? 'WHERE submitted_by = ?' : '';
-    $params = $user['role'] === 'field_inspector' ? [$user['user_id']] : [];
+    $where  = ['team_id = ?'];
+    $params = [$teamId];
+    if ($m['role'] === 'field_inspector') {
+        $where[]  = 'submitted_by = ?';
+        $params[] = $actor['user_id'];
+    }
+    $whereSQL = 'WHERE ' . implode(' AND ', $where);
 
-    $today = date('Y-m-d');
-
-    $todayCount = $db->prepare(
-        "SELECT COUNT(*) AS cnt FROM InspectionReports
-         $where" . ($where ? ' AND ' : 'WHERE ') . "DATE(submitted_at) = ?"
+    $stmt = $db->prepare(
+        "SELECT
+            COUNT(*) AS total,
+            SUM(DATE(submitted_at) = CURDATE()) AS reports_today,
+            SUM(severity = 'critical' AND status NOT IN ('completed','rejected')) AS critical_flagged,
+            SUM(status = 'completed') AS resolved
+         FROM InspectionReports
+         $whereSQL"
     );
-    $todayParams = $params;
-    $todayParams[] = $today;
-    $todayCount->execute($todayParams);
+    $stmt->execute($params);
+    $row = $stmt->fetch();
 
-    $critical = $db->prepare(
-        "SELECT COUNT(*) AS cnt FROM InspectionReports
-         $where" . ($where ? ' AND ' : 'WHERE ') . "severity = 'critical' AND status NOT IN ('completed','rejected')"
-    );
-    $critical->execute($params);
-
-    $resolved = $db->prepare(
-        "SELECT COUNT(*) AS cnt FROM InspectionReports $where"
-    );
-    $resolved->execute($params);
-    $total = (int)$resolved->fetchColumn();
-
-    $resolvedCount = $db->prepare(
-        "SELECT COUNT(*) AS cnt FROM InspectionReports
-         $where" . ($where ? ' AND ' : 'WHERE ') . "status = 'completed'"
-    );
-    $resolvedCount->execute($params);
-    $resolvedNum = (int)$resolvedCount->fetchColumn();
-
-    $rate = $total > 0 ? round(($resolvedNum / $total) * 100) : 0;
+    $total    = (int)$row['total'];
+    $resolved = (int)$row['resolved'];
 
     json_response(true, 'Stats retrieved.', [
-        'reports_today'   => (int)$todayCount->fetchColumn(),
-        'critical_flagged'=> (int)$critical->fetchColumn(),
-        'resolution_rate' => $rate . '%',
-        'total'           => $total,
+        'reports_today'    => (int)$row['reports_today'],
+        'critical_flagged' => (int)$row['critical_flagged'],
+        'resolution_rate'  => ($total > 0 ? round(($resolved / $total) * 100) : 0) . '%',
+        'total'            => $total,
     ]);
 }
 

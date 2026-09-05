@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="theme-color" content="#f59e0b"/>
+<link rel="manifest" href="manifest.json"/>
+<title>ConstructFlow — Set up your account</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css"/>
+<link rel="stylesheet" href="style-auth.css"/>
+<link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
+<link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="logo/apple-touch-icon.png"/>
+</head>
+<body data-page="setup-account">
+
+<div class="toast-container" id="toasts"></div>
+
+<div class="team-page">
+  <div class="team-wrap">
+
+    <div class="team-head">
+      <div class="team-mark">
+        <img src="logo/logo.svg" alt="ConstructFlow" style="width:32px;height:32px;display:block"/>
+      </div>
+      <h1 id="sa-title">Set up your account</h1>
+      <p id="sa-sub">Checking your invitation&hellip;</p>
+    </div>
+
+    <div class="auth-banner" id="sa-banner" role="status" aria-live="polite"></div>
+
+    <div class="team-card" style="padding:0">
+
+      <div class="auth-steps" id="sa-steps" style="display:none">
+        <div class="auth-step current" data-step="1">
+          <div class="auth-step-dot">1</div><div class="auth-step-label">Your details</div>
+        </div>
+        <div class="auth-step-bar"></div>
+        <div class="auth-step" data-step="2">
+          <div class="auth-step-dot">2</div><div class="auth-step-label">Password</div>
+        </div>
+      </div>
+
+      <div class="auth-modal-body">
+
+        <!-- ── LOADING ────────────────────────────────────── -->
+        <div class="auth-pane active" id="sa-pane-load">
+          <p class="auth-sent-to" style="margin-bottom:0">One moment&hellip;</p>
+        </div>
+
+        <!-- ── DEAD LINK ──────────────────────────────────────
+             Expired, revoked, already used, or never existed. The
+             server gives one message for all four so a guessed token
+             cannot tell them apart. -->
+        <div class="auth-pane" id="sa-pane-dead">
+          <div class="auth-wait">
+            <div class="auth-wait-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <h3>This invitation isn't valid</h3>
+            <p id="sa-dead-msg">
+              The link may have expired, already been used, or been cancelled.
+              Ask your administrator to send a new one.
+            </p>
+          </div>
+          <a class="auth-btn-ghost" href="login.html" style="display:block;text-align:center;text-decoration:none;margin-top:16px">Go to login</a>
+        </div>
+
+        <!-- ── ALREADY REGISTERED ─────────────────────────────
+             The address already has an account, so there is nothing
+             to set up. Logging in claims the invitation. -->
+        <div class="auth-pane" id="sa-pane-known">
+          <p class="auth-sent-to">
+            <b id="sa-inviter2"></b> invited you to <b id="sa-team2"></b> as
+            <b id="sa-role2"></b>.<br>
+            You already have a ConstructFlow account, so log in with
+            <b id="sa-email2"></b> and you'll be added straight away.
+          </p>
+          <a class="auth-btn" id="sa-login-link" href="login.html" style="display:block;text-align:center;text-decoration:none">Log in to accept</a>
+        </div>
+
+        <!-- ── STEP 1 · IDENTITY, GENDER, ADDRESS ─────────── -->
+        <div class="auth-pane" id="sa-pane-1">
+          <p class="auth-sent-to">
+            <b id="sa-inviter"></b> invited you to <b id="sa-team"></b> as
+            <b id="sa-role"></b>.<br>
+            Check the details below and correct anything that's wrong.
+          </p>
+
+          <div class="auth-field">
+            <label for="sa-email">Email</label>
+            <input class="auth-input" id="sa-email" disabled/>
+          </div>
+
+          <div class="auth-grid-2">
+            <div class="auth-field">
+              <label for="sa-first">First name <span>*</span></label>
+              <input class="auth-input" id="sa-first" maxlength="60" autocomplete="given-name"/>
+            </div>
+            <div class="auth-field">
+              <label for="sa-last">Last name <span>*</span></label>
+              <input class="auth-input" id="sa-last" maxlength="60" autocomplete="family-name"/>
+            </div>
+          </div>
+
+          <div class="auth-grid-2">
+            <div class="auth-field">
+              <label for="sa-birth">Birthdate <span>*</span></label>
+              <input class="auth-input" type="date" id="sa-birth"/>
+            </div>
+            <div class="auth-field">
+              <label for="sa-gender">Gender <span>*</span></label>
+              <select class="auth-input" id="sa-gender">
+                <option value="">Select&hellip;</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="auth-field">
+            <label for="sa-address">Address <span>*</span></label>
+            <input class="auth-input" id="sa-address" maxlength="255" autocomplete="street-address"
+                   placeholder="123 Rizal St, Barangay Poblacion, Marikina"/>
+          </div>
+
+          <div class="auth-err" id="sa-err-1" role="alert"></div>
+          <button class="auth-btn" id="sa-btn-1" onclick="saNext()">Continue</button>
+        </div>
+
+        <!-- ── STEP 2 · PASSWORD ──────────────────────────── -->
+        <div class="auth-pane" id="sa-pane-2">
+          <p class="auth-sent-to">
+            Choose a password. You'll use it with <b id="sa-email-echo"></b> to log in.
+          </p>
+
+          <div class="auth-field">
+            <label for="sa-pass">Password <span>*</span></label>
+            <input class="auth-input" type="password" id="sa-pass" autocomplete="new-password"
+                   placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" oninput="paintRules('sa-pass','sa-rules')"/>
+          </div>
+
+          <div class="auth-rules" id="sa-rules">
+            <div class="auth-rule" data-rule="len"><span class="auth-rule-mark">&#10003;</span>At least 8 characters</div>
+            <div class="auth-rule" data-rule="upper"><span class="auth-rule-mark">&#10003;</span>At least 1 uppercase letter</div>
+            <div class="auth-rule" data-rule="num"><span class="auth-rule-mark">&#10003;</span>At least 1 number</div>
+          </div>
+
+          <div class="auth-field">
+            <label for="sa-pass2">Confirm password <span>*</span></label>
+            <input class="auth-input" type="password" id="sa-pass2" autocomplete="new-password"
+                   placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"/>
+          </div>
+
+          <div class="auth-err" id="sa-err-2" role="alert"></div>
+          <button class="auth-btn" id="sa-btn-2" onclick="saComplete()">Create account</button>
+
+          <div class="auth-row-between">
+            <button type="button" class="auth-link" onclick="gotoStep('sa',1)">&larr; Back</button>
+            <span></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="auth.js"></script>
+</body>
+</html>

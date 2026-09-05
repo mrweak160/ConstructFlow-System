@@ -1,19 +1,26 @@
-# ConstructFlow — .gitignore
+# ConstructFlow — files that must never reach GitHub
 
-# Environment and config (keep credentials out of GitHub)
+# Real credentials
+config/secrets.php
 config/db.php
 
-# Uploaded files (photos, exports) — don't commit user data
-uploads/photos/
-uploads/reports/
+# Local mail log (contains verification codes)
+storage/
 
-# OS files
-.DS_Store
-Thumbs.db
+# Uploaded inspection photos and generated exports
+uploads/photos/*
+uploads/reports/*
+!uploads/photos/.gitkeep
+!uploads/reports/.gitkeep
 
-# IDE
+# Composer
+vendor/
+
+# Diagnostic — must not be deployed
+mailtest.php
+
+# Editor / OS noise
 .vscode/
 .idea/
-
-# Logs
-*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="theme-color" content="#f59e0b"/>
+<link rel="manifest" href="manifest.json"/>
+<title>ConstructFlow — Your teams</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style.css"/>
+<link rel="stylesheet" href="style-auth.css"/>
+<link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
+<link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="logo/apple-touch-icon.png"/>
+</head>
+<body data-page="team">
+
+<div class="toast-container" id="toasts"></div>
+
+<div class="team-page">
+  <div class="team-wrap">
+
+    <div class="team-head">
+            <div class="team-mark">
+        <img src="logo/logo.svg" alt="ConstructFlow" style="width:32px;height:32px;display:block"/>
+      </div>
+      <h1 id="t-title">Welcome to ConstructFlow</h1>
+      <p id="t-sub">Start a construction team, or join one you've been invited to.</p>
+    </div>
+
+    <div class="auth-banner" id="t-banner" role="status" aria-live="polite"></div>
+
+    <!-- ── Existing memberships ────────────────────────── -->
+    <div class="team-card" id="t-list-card" style="display:none">
+      <div id="t-list"></div>
+    </div>
+
+
+    <div class="team-card" id="t-pane-stranded" style="display:none">
+      <div class="team-code-panel">
+        <h3 style="font-size:16px;font-weight:700;color:var(--auth-ink);margin-bottom:10px">
+          You're not on a team yet
+        </h3>
+        <p style="margin-bottom:0">
+          Your administrator adds people by email. When they invite you,
+          the link arrives in your inbox and brings you straight in —
+          there is nothing to do here in the meantime.
+        </p>
+      </div>
+    </div>
+
+        <!-- ── Create, for owners only ─────────────────────────-->
+    <div id="t-choices" style="display:none">
+      <button class="team-choice" id="t-choice-create" onclick="showPane('create')">
+        <div class="team-choice-icon tc-amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/>
+          </svg>
+        </div>
+        <div class="team-choice-text">
+          <strong>Create a team</strong>
+          <span>Set up a new construction team. You'll be its administrator and invite the crew by email.</span>
+        </div>
+      </button>
+    </div>
+
+    <!-- ── Create form ─────────────────────────────────── -->
+    <div class="team-card" id="t-pane-create" style="display:none">
+      <button class="team-back" onclick="showPane('choices')">&larr; Back</button>
+      <div class="auth-field">
+        <label for="t-name">Team name <span>*</span></label>
+        <input class="auth-input" id="t-name" placeholder="e.g. Riverside Bridge Rehab" maxlength="150"/>
+      </div>
+      <div class="auth-field">
+        <label for="t-desc">Description</label>
+        <input class="auth-input" id="t-desc" placeholder="Optional — what this team is working on" maxlength="500"/>
+      </div>
+      <div class="auth-err" id="t-err-create" role="alert"></div>
+      <button class="auth-btn" id="t-btn-create" onclick="createTeam()">Create team</button>
+    </div>
+
+       <!-- ── Created ─────────────────────────────────────── -->
+    <div class="team-card" id="t-pane-created" style="display:none">
+      <div class="team-code-panel">
+        <h3 style="font-size:16px;font-weight:700;color:var(--auth-ink);margin-bottom:8px" id="t-created-name"></h3>
+        <p>You're the administrator. Invite your crew by email from the
+           Members page — pick each person's role as you invite them.</p>
+        <button class="auth-btn" onclick="goToDashboard()">Go to my dashboard</button>
+      </div>
+    </div>
+
+    <div class="team-foot">
+      Signed in as <b id="t-who">…</b> · <button onclick="signOut()">Sign out</button>
+    </div>
+
+  </div>
+</div>
+
+<script src="team.js"></script>
+</body>
+</html>

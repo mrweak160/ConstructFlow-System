@@ -8,48 +8,68 @@ const ROLE_PAGE   = {field_inspector:'inspector.html', supervisor:'supervisor.ht
 // Maps each page's data-page short key -> the DB role required to view it.
 const PAGE_ROLE   = {inspector:'field_inspector', supervisor:'supervisor', fieldworker:'field_worker', admin:'administrator'};
 
-async function loadCurrentUser(){
-  const res = await fetch('api/auth.php?action=me', { credentials:'include' });
-  const data = await res.json();
-  return data.success ? data.data.user : null;
+// Maps a team role to a human label for the profile modal etc.
+const ROLE_LABEL = {
+  field_inspector:'Field Inspector', supervisor:'Supervisor',
+  field_worker:'Field Worker', administrator:'Administrator', member:'No role yet'
+};
+
+// Reads the session from the server. Role is NOT a property of the
+// account any more — it comes from the team the person currently has
+// selected, so /me returns it alongside the user rather than inside it.
+async function loadSession(){
+  try{
+    const res  = await fetch('api/auth.php?action=me', { credentials:'include' });
+    const data = await res.json();
+    if(!data.success) return null;
+    return {
+      user:        data.data.user,
+      role:        data.data.role,            // null when no team is selected
+      teamId:      data.data.active_team_id,
+      teamName:    data.data.team_name,
+      memberships: data.data.memberships || [],
+      csrfToken:   data.data.csrf_token
+    };
+  }catch(e){
+    return null;   // server unreachable
+  }
 }
 
 // Runs once on inspector.html / supervisor.html / fieldworker.html / admin.html.
-// Confirms someone is logged in and on the page matching their role
-// (redirecting otherwise), then renders that page's initial view.
+// Four outcomes, in order:
+//   not signed in            -> login.html
+//   signed in, no team/role  -> team.html (create, join, or await approval)
+//   signed in, wrong page    -> the page matching their role in this team
+//   signed in, right page    -> render it
 async function initRolePage(pageKey){
   const requiredRole = PAGE_ROLE[pageKey];
-  currentUser = await loadCurrentUser();
-  if(!currentUser){ window.location.href = 'login.html'; return; }
-  if(currentUser.role !== requiredRole){ window.location.href = ROLE_PAGE[currentUser.role] || 'login.html'; return; }
+  const session = await loadSession();
+
+  if(!session){ window.location.href = 'login.html'; return; }
+
+  currentUser = session.user;
+  currentUser.role     = session.role;        // kept on the object so existing code keeps working
+  currentUser.teamId   = session.teamId;
+  currentUser.teamName = session.teamName;
+  window.CSRF_TOKEN    = session.csrfToken;
+
+  // No team selected, or approved into a team but not yet given a job.
+  if(!session.role || session.role === 'member'){
+    window.location.href = 'team.html';
+    return;
+  }
+
+  if(session.role !== requiredRole){
+    window.location.href = ROLE_PAGE[session.role] || 'team.html';
+    return;
+  }
+
   refreshScreen(ROLE_SCREEN[requiredRole]);
 }
+
 // ════════════════════════════════════════
 // AUTH
 // ════════════════════════════════════════
-async function doLogin(){
-  const email = $('#l-email').value.trim();
-  const pass  = $('#l-pass').value.trim();
-  const portalKey = $('#l-role') ? $('#l-role').value : '';
-  const requestedRole = PAGE_ROLE[portalKey] || '';
-  if(!email || !pass){ toast('Please enter your email and password','error'); return; }
-
-  const res = await fetch('api/auth.php?action=login', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password: pass, requested_role: requestedRole })
-  });
-  const data = await res.json();
-
-  if(data.success){
-    currentUser = data.data.user;
-    window.location.href = ROLE_PAGE[currentUser.role] || 'login.html';
-  } else {
-    document.getElementById('l-err').textContent = data.message || 'Invalid credentials. Please try again.';
-    document.getElementById('l-err').style.display = 'block';
-  }
-}
 
 async function doSignout(){
   await fetch('api/auth.php?action=logout', { method:'POST', credentials:'include' });
@@ -66,7 +86,7 @@ function switchView(screen,view){
 
   // Map screen + view to the actual element ID used in HTML
   const prefixMap = {inspector:'insp',supervisor:'sup',fieldworker:'fw',admin:'adm'};
-  const viewMap   = {dashboard:'dashboard',reports:'reports',workorders:'workorders',history:'history',users:'users',logs:'logs',tasks:'tasks'};
+  const viewMap   = {dashboard:'dashboard',reports:'reports',workorders:'workorders',history:'history',logs:'logs',tasks:'tasks'};  
   const prefix = prefixMap[screen] || screen;
   const vid    = prefix + '-' + (viewMap[view] || view);
 
@@ -77,7 +97,7 @@ function switchView(screen,view){
 
   // Switch nav highlight
   s.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  const navSuffix = {dashboard:'dash',reports:'rep',workorders:'wo',history:'hist',users:'users',logs:'logs',tasks:'tasks'};
+  const navSuffix = {dashboard:'dash',reports:'rep',workorders:'wo',history:'hist',logs:'logs',tasks:'tasks'};
   const navEl = document.getElementById(prefix+'-nav-'+(navSuffix[view]||view));
   if(navEl) navEl.classList.add('active');
 
@@ -106,22 +126,39 @@ function refreshView(screen,view){
     if(view==='history') renderFWHistory();
   } else if(screen==='admin'){
     if(view==='dashboard') renderAdmDash();
-    if(view==='users') renderAdmUsers();
-    if(view==='logs') renderAdmLogs();
+    if(view==='members')   renderAdmMembers();
+    if(view==='logs')      renderAdmLogs();
   }
 }
 
 // ════════════════════════════════════════
 // INSPECTOR
 // ════════════════════════════════════════
+// ── TEAM NAME / DESCRIPTION IN THE TOPBAR ────────────────
+async function paintTeamHeader(prefix){
+  setText(prefix + '-teamname', currentUser && currentUser.teamName ? currentUser.teamName : '—');
+
+  try{
+    const res  = await fetch('api/teams.php?action=detail', { credentials:'include' });
+    const data = await res.json();
+    if(data.success && data.data.team){
+      setText(prefix + '-teamname', data.data.team.name);
+      setText(prefix + '-teamdesc', data.data.team.description || '');
+    }
+  }catch(e){ }
+}
+
 function refreshInspector(){
   if(currentUser){
     document.getElementById('insp-uname').textContent = currentUser.name;
     document.getElementById('insp-topname').textContent = currentUser.name;
+    setText('insp-topemail', currentUser.email || '');
+    setText('insp-topav', currentUser.name[0]);
     const av = currentUser.name[0];
     document.getElementById('insp-av').textContent = av;
     document.getElementById('insp-topav').textContent = av;
   }
+  paintTeamHeader('insp');
   renderInspDash();
 }
 
@@ -165,11 +202,11 @@ async function renderInspTaskList(){
   }
   el.innerHTML = tasks.map(t=>`
     <div class="queue-card">
-      <div class="queue-card-top"><span class="badge badge-pending">Assigned</span><span style="font-size:12px;color:var(--muted)">${t.task_code}</span></div>
-      <h4>${t.title.toUpperCase()}</h4>
-      <p>${t.description || 'No additional instructions provided.'}</p>
+      <div class="report-card-meta"><span class="badge badge-${r.severity}">${cap(r.severity)}</span><span style="font-size:12px;color:var(--muted)">${esc(r.report_code)}</span></div>
+      <h4>${esc(t.title.toUpperCase())}</h4>
+      <p>${esc(t.description || 'No additional instructions provided.')}</p>
       <div class="queue-card-foot">
-        <span class="report-card-loc" style="font-size:12px;color:var(--muted)">📍 ${t.location_text}</span>
+        <span class="report-card-loc" style="font-size:12px;color:var(--muted)">📍 ${esc(t.location_text)}</span>
         ${t.due_date?`<span style="font-size:11.5px;color:var(--muted)">📅 Due ${fmtDate(t.due_date)}</span>`:''}
         <button class="btn btn-amber btn-sm" onclick="openSubmitFromTask(${t.task_id})">Perform Inspection ›</button>
       </div>
@@ -184,7 +221,7 @@ function openSubmitFromTask(taskId){
   document.getElementById('s-type').value  = '';
   document.getElementById('s-sev').value   = '';
   document.getElementById('photo-preview').innerHTML = '';
-  photoDataUrls = [];
+  window.selectedReportPhotos = [];
   openModal('modal-submit');
 }
 
@@ -207,10 +244,13 @@ function refreshSupervisor(){
   if(currentUser){
     document.getElementById('sup-uname').textContent = currentUser.name;
     document.getElementById('sup-topname').textContent = currentUser.name;
+    setText('sup-topemail', currentUser.email || '');
+    setText('sup-topav', currentUser.name[0]);
     const av = currentUser.name[0];
     document.getElementById('sup-av').textContent = av;
     document.getElementById('sup-topav').textContent = av;
   }
+  paintTeamHeader('sup');
   renderSupDash();
 }
 
@@ -242,10 +282,10 @@ async function renderSupDash(){
         <div class="report-card-meta"><span class="badge badge-${r.severity}">${cap(r.severity)}</span><span style="font-size:12px;color:var(--muted)">${r.report_code}</span></div>
         <span class="report-time">${timeAgo(r.submitted_at)}</span>
       </div>
-      <h4>${r.title.toUpperCase()}</h4>
-      <p>${r.description}</p>
+      <h4>${esc(r.title.toUpperCase())}</h4>
+      <p>${esc(r.description)}</p>
       <div class="report-card-footer">
-        <span class="report-card-loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${r.location_text}</span>
+        <span class="report-card-loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(r.location_text)}</span>
         <button class="btn-assign" onclick="openAssign('${r.report_id}')">＋ Assign</button>
       </div>
     </div>`).join('');
@@ -264,9 +304,9 @@ async function renderSupReports(filter='all'){
     return;
   }
   tbody.innerHTML = filtered.map(r=>`<tr>
-    <td class="id">${r.report_code}</td>
-    <td class="issue">${r.title}</td>
-    <td>${r.submitted_by_name}</td>
+    <td class="id">${esc(r.report_code)}</td>
+    <td class="issue">${esc(r.title)}</td>
+    <td>${esc(r.submitted_by_name)}</td>
     <td><span class="badge badge-${r.severity}">${cap(r.severity)}</span></td>
     <td>${fmtDate(r.submitted_at)}</td>
     <td>${statusBadge(r.status)}</td>
@@ -275,8 +315,8 @@ async function renderSupReports(filter='all'){
   </tr>`).join('');
   cards.innerHTML = filtered.map(r=>`
     <div class="m-card">
-      <div class="m-card-top"><div><div class="m-card-title">${r.title}</div><div class="m-card-id">${r.report_code} • ${r.submitted_by_name}</div></div><span class="badge badge-${r.severity}">${cap(r.severity)}</span></div>
-      <div class="m-card-loc">📍 ${r.location_text}</div>
+      <div class="m-card-top"><div><div class="m-card-title">${esc(r.title)}</div><div class="m-card-id">${esc(r.report_code)} • ${esc(r.submitted_by_name)}</div></div><span class="badge badge-${r.severity}">${cap(r.severity)}</span></div>
+      <div class="m-card-loc">📍 ${esc(r.location_text)}</div>
       <div class="m-card-footer">${statusBadge(r.status)}<div style="display:flex;gap:8px">
         <button class="action-link" onclick="openReportDetail('${r.report_id}')">View</button>
         ${r.status==='pending'?`<button class="btn-assign btn-sm" onclick="openAssign('${r.report_id}')">Assign</button>`:''}
@@ -302,9 +342,9 @@ async function renderSupWO(){
     cards.innerHTML='';return;
   }
   tbody.innerHTML = wos.map(w=>`<tr>
-    <td class="id">${w.wo_code}</td>
-    <td class="issue">${w.report_title}</td>
-    <td>${w.assigned_to_name}</td>
+    <td class="id">${esc(w.wo_code)}</td>
+    <td class="issue">${esc(w.report_title)}</td>
+    <td>${esc(w.assigned_to_name)}</td>
     <td><span class="badge badge-${w.severity}">${cap(w.severity)}</span></td>
     <td>${fmtDate(w.created_at)}</td>
     <td>${woStatusBadge(w.status)}</td>
@@ -312,8 +352,8 @@ async function renderSupWO(){
   </tr>`).join('');
   cards.innerHTML = wos.map(w=>`
     <div class="m-card">
-      <div class="m-card-top"><div><div class="m-card-title">${w.report_title}</div><div class="m-card-id">${w.wo_code} → ${w.assigned_to_name}</div></div><span class="badge badge-${w.severity}">${cap(w.severity)}</span></div>
-      <div class="m-card-loc">📍 ${w.location_text}</div>
+      <div class="m-card-top"><div><div class="m-card-title">${esc(w.report_title)}</div><div class="m-card-id">${esc(w.wo_code)} → ${esc(w.assigned_to_name)}</div></div><span class="badge badge-${w.severity}">${cap(w.severity)}</span></div>
+      <div class="m-card-loc">📍 ${esc(w.location_text)}</div>
       <div class="m-card-footer">${woStatusBadge(w.status)}<button class="action-link" onclick="openWODetail('${w.wo_id}')">View</button></div>
     </div>`).join('');
 }
@@ -337,10 +377,10 @@ async function renderSupTasks(){
     return;
   }
   tbody.innerHTML = tasks.map(t=>`<tr>
-    <td class="id">${t.task_code}</td>
-    <td class="issue">${t.title}</td>
-    <td>${t.assigned_to_name}</td>
-    <td>${t.location_text}</td>
+    <td class="id">${esc(t.task_code)}</td>
+    <td class="issue">${esc(t.title)}</td>
+    <td>${esc(t.assigned_to_name)}</td>
+    <td>${esc(t.location_text)}</td>
     <td>${statusBadgeTask(t.status)}</td>
     <td>${t.due_date ? fmtDate(t.due_date) : '—'}</td>
     <td>${t.status==='submitted'?`<button class="action-link" onclick="closeTask(${t.task_id})">Close Task</button>`:''}
@@ -348,8 +388,8 @@ async function renderSupTasks(){
   </tr>`).join('');
   cards.innerHTML = tasks.map(t=>`
     <div class="m-card">
-      <div class="m-card-top"><div><div class="m-card-title">${t.title}</div><div class="m-card-id">${t.task_code} → ${t.assigned_to_name}</div></div>${statusBadgeTask(t.status)}</div>
-      <div class="m-card-loc">📍 ${t.location_text}</div>
+      <div class="m-card-top"><div><div class="m-card-title">${esc(t.title)}</div><div class="m-card-id">${esc(t.task_code)} → ${esc(t.assigned_to_name)}</div></div>${statusBadgeTask(t.status)}</div>
+      <div class="m-card-loc">📍 ${esc(t.location_text)}</div>
       <div class="m-card-footer">${t.due_date?`Due ${fmtDate(t.due_date)}`:''}<div style="display:flex;gap:8px">
         ${t.status==='submitted'?`<button class="action-link" onclick="closeTask(${t.task_id})">Close</button>`:''}
         ${t.report_id?`<button class="action-link" onclick="openReportDetail('${t.report_id}')">View Report</button>`:''}
@@ -368,7 +408,7 @@ async function openCreateTask(){
   const inspectors = data.success ? data.data.users : [];
   const sel = document.getElementById('ct-inspector');
   sel.innerHTML = '<option value="">Select field inspector...</option>' +
-    inspectors.map(u=>`<option value="${u.user_id}">${u.name}</option>`).join('');
+    inspectors.map(u=>`<option value="${u.user_id}">${esc(u.name)}</option>`).join('');
 
   openModal('modal-create-task');
 }
@@ -384,7 +424,7 @@ async function createTask(){
   const res = await fetch('api/tasks.php?action=create', {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
     body: JSON.stringify({ assigned_to: assignedTo, title, description: desc, location_text: loc, due_date: due })
   });
   const data = await res.json();
@@ -403,7 +443,7 @@ async function closeTask(taskId){
   const res = await fetch('api/tasks.php?action=close', {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
     body: JSON.stringify({ task_id: taskId })
   });
   const data = await res.json();
@@ -422,10 +462,13 @@ function refreshFieldWorker(){
   if(currentUser){
     document.getElementById('fw-uname').textContent = currentUser.name;
     document.getElementById('fw-topname').textContent = currentUser.name;
+    setText('fw-topemail', currentUser.email || '');
+    setText('fw-topav', currentUser.name[0]);
     const av = currentUser.name[0];
     document.getElementById('fw-av').textContent = av;
     document.getElementById('fw-topav').textContent = av;
   }
+  paintTeamHeader('fw');
   renderFWQueue();
 }
 
@@ -451,15 +494,14 @@ async function renderFWQueue(){
   }
   el.innerHTML = wos.map(w=>`
     <div class="queue-card ${w.status==='completed'?'done':''}">
-      <div class="queue-card-top">${woStatusBadge(w.status)}<span style="font-size:12px;color:var(--muted)">${w.wo_code}</span></div>
-      <h4>${w.report_title.toUpperCase()}</h4>
-      <p>${w.instructions||'No special instructions provided.'}</p>
+      <div class="queue-card-top">${woStatusBadge(w.status)}<span style="font-size:12px;color:var(--muted)">${esc(w.wo_code)}</span></div>      <h4>${esc(w.report_title.toUpperCase())}</h4>
+      <p>${esc(w.instructions||'No special instructions provided.')}</p>
       <div class="queue-card-foot">
-        <span class="report-card-loc" style="font-size:12px;color:var(--muted)">📍 ${w.location_text}</span>
+        <span class="report-card-loc" style="font-size:12px;color:var(--muted)">📍 ${esc(w.location_text)}</span>
         <span style="font-size:11.5px;color:var(--muted)">⏱ ${fmtDate(w.created_at)}</span>
         <button class="btn btn-amber btn-sm" onclick="openUpdateTask('${w.wo_id}')">Process Task ›</button>
       </div>
-      ${w.latest_remarks?`<div style="margin-top:10px;padding:8px 10px;background:rgba(255,255,255,.03);border-radius:6px;font-size:12px;color:var(--muted)">Last update: ${w.latest_remarks}</div>`:''}
+      ${w.latest_remarks?`<div style="margin-top:10px;padding:8px 10px;background:rgba(255,255,255,.03);border-radius:6px;font-size:12px;color:var(--muted)">Last update: ${esc(w.latest_remarks)}</div>`:''}
     </div>`).join('');
 }
 
@@ -473,15 +515,15 @@ async function renderFWHistory(){
     cards.innerHTML='';return;
   }
   tbody.innerHTML = wos.map(w=>`<tr>
-    <td class="id">${w.wo_code}</td><td class="issue">${w.report_title}</td><td>${w.location_text}</td>
+    <td class="id">${esc(w.wo_code)}</td><td class="issue">${esc(w.report_title)}</td><td>${esc(w.location_text)}</td>
     <td><span class="badge badge-${w.severity}">${cap(w.severity)}</span></td>
     <td>${fmtDate(w.updated_at)}</td>
     <td>${woStatusBadge(w.status)}</td>
   </tr>`).join('');
   cards.innerHTML = wos.map(w=>`
     <div class="m-card">
-      <div class="m-card-top"><div><div class="m-card-title">${w.report_title}</div><div class="m-card-id">${w.wo_code}</div></div><span class="badge badge-${w.severity}">${cap(w.severity)}</span></div>
-      <div class="m-card-loc">📍 ${w.location_text} • ${fmtDate(w.updated_at)}</div>
+      <div class="m-card-top"><div><div class="m-card-title">${esc(w.report_title)}</div><div class="m-card-id">${esc(w.wo_code)}</div></div><span class="badge badge-${w.severity}">${cap(w.severity)}</span></div>
+      <div class="m-card-loc">📍 ${esc(w.location_text)} • ${fmtDate(w.updated_at)}</div>
       <div class="m-card-footer">${woStatusBadge(w.status)}</div>
     </div>`).join('');
 }
@@ -491,141 +533,339 @@ async function renderFWHistory(){
 // ════════════════════════════════════════
 function refreshAdmin(){
   if(currentUser){
-    document.getElementById('adm-uname').textContent = currentUser.name;
-    document.getElementById('adm-topname').textContent = currentUser.name;
+    setText('adm-uname',   currentUser.name);
+    setText('adm-topname', currentUser.name);
+    setText('adm-topemail',currentUser.email || '');
     const av = currentUser.name[0];
-    document.getElementById('adm-av').textContent = av;
-    document.getElementById('adm-topav').textContent = av;
+    setText('adm-av',    av);
+    setText('adm-topav', av);
   }
+    paintTeamHeader('adm');
   renderAdmDash();
 }
 
-async function renderAdmDash(){
-  const [repRes, woRes, userRes] = await Promise.all([
-    fetch('api/reports.php?action=list', { credentials:'include' }).then(r=>r.json()),
-    fetch('api/workorders.php?action=list', { credentials:'include' }).then(r=>r.json()),
-    fetch('api/users.php?action=list', { credentials:'include' }).then(r=>r.json())
-  ]);
-  const reports = repRes.success  ? repRes.data.reports      : [];
-  const wos     = woRes.success   ? woRes.data.work_orders   : [];
-  const users   = userRes.success ? userRes.data.users       : [];
+// Shared by every admin view so the labels cannot drift apart.
+const ADM_ROLE_LABEL = {
+  administrator:'Administrator', supervisor:'Supervisor',
+  field_inspector:'Field Inspector', field_worker:'Field Worker',
+  member:'No role yet'
+};
+const ADM_ROLE_CHIP = {
+  administrator:'chip-admin', supervisor:'chip-sup',
+  field_inspector:'chip-insp', field_worker:'chip-worker', member:'chip-sup'
+};
+const ADM_ROLE_AV = {
+  administrator:'av-red', supervisor:'av-blue',
+  field_inspector:'av-green', field_worker:'av-amber', member:'av-amber'
+};
 
-  setText('adm-stat-users',   users.filter(u=>u.is_active==1).length);
-  setText('adm-stat-reports', reports.length);
-  setText('adm-stat-wo',      wos.length);
+async function admApi(file, action, body){
+  const url = `api/${file}.php?action=${action}`;
+  try{
+    const res = await fetch(url, body === undefined
+      ? { credentials:'include' }
+      : { method:'POST', credentials:'include',
+          headers:{ 'Content-Type':'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
+          body: JSON.stringify(body) });
+    return await res.json();
+  }catch(e){
+    return { success:false, message:'Cannot reach the server. Check your connection and try again.' };
+  }
+}
+
+// State the modals read back when the user confirms.
+let _admTeam     = null;
+let _admMembers  = [];
+let _admInvites = [];
+let _arUserId  = 0;
+
+// ── DASHBOARD ────────────────────────────────────────────
+async function renderAdmDash(){
+  const [detail, members] = await Promise.all([
+    admApi('teams','detail'),
+    admApi('teams','members')
+  ]);
+
+  if(!detail.success){ toast(detail.message,'error'); return; }
+
+  _admTeam = detail.data.team;
+  const list = members.success ? members.data.members : [];
+
+  setText('adm-dash-sub', `${_admTeam.member_count} member${_admTeam.member_count==1?'':'s'}`);
+  setText('adm-stat-members',    _admTeam.member_count);
+  setText('adm-stat-invites',    _admTeam.pending_invites ?? 0);
+  setText('adm-stat-unassigned', list.filter(m=>m.role==='member').length);
+
   renderAdmEvents();
 }
 
 async function renderAdmEvents(){
-  const res  = await fetch('api/logs.php?action=list&limit=10', { credentials:'include' });
-  const data = await res.json();
+  const data = await admApi('logs','list&limit=10');
   const logs = data.success ? data.data.logs : [];
-
-  const el = document.getElementById('adm-events-list');
+  const el = $('adm-events-list');
   if(!logs.length){ el.innerHTML='<div class="empty-state"><p>No activity yet</p></div>'; return; }
   el.innerHTML = logs.map(l=>`
     <div class="event-row">
-      <div><div class="event-name">${l.action}</div><div class="event-by">by ${l.user_name || 'System'}</div></div>
+      <div><div class="event-name">${esc(l.action)}</div><div class="event-by">by ${esc(l.user_name || 'System')}</div></div>
       <div class="event-time">${fmtDate(l.logged_at)}</div>
     </div>`).join('');
 }
 
-let _admUsersCache = [];
-
-async function renderAdmUsers(q=''){
-  const res  = await fetch('api/users.php?action=list', { credentials:'include' });
-  const data = await res.json();
-  const users = data.success ? data.data.users : [];
-  _admUsersCache = users; // cache for deactivateUser lookups
-
-  const filtered = q ? users.filter(u=>u.name.toLowerCase().includes(q)||u.email.toLowerCase().includes(q)) : users;
-  const roleChip  = {field_inspector:'chip-insp',supervisor:'chip-sup',field_worker:'chip-worker',administrator:'chip-admin'};
-  const roleLabel = {field_inspector:'Inspector',supervisor:'Supervisor',field_worker:'Field Worker',administrator:'Admin'};
-
-  document.getElementById('adm-user-table').innerHTML = filtered.map(u=>`<tr>
-    <td><div style="display:flex;align-items:center;gap:10px">
-      <div class="avatar ${u.role==='administrator'?'av-red':u.role==='supervisor'?'av-blue':u.role==='field_worker'?'av-green':'av-amber'}" style="width:28px;height:28px;font-size:11px">${u.name[0]}</div>
-      <div><div style="font-weight:600;color:var(--text);font-size:13px">${u.name}</div><div style="font-size:11px;color:var(--muted)">${u.email}</div></div>
-    </div></td>
-    <td><span class="chip ${roleChip[u.role]}">${roleLabel[u.role]}</span></td>
-    <td><span style="display:flex;align-items:center;gap:6px"><span class="dot-active"></span><span style="font-size:12.5px;color:var(--green)">${u.is_active==1?'Active':'Inactive'}</span></span></td>
-    <td><button class="action-link" onclick="deactivateUser(${u.user_id})">Deactivate</button></td>
-  </tr>`).join('');
+// ── SETTINGS MENU ────────────────────────────────────────
+function toggleSettingsMenu(e){
+  e.stopPropagation();
+  $('adm-settings-menu').classList.toggle('open');
 }
 
+function openSettings(which){
+  $('adm-settings-menu').classList.remove('open');
+  if(which === 'team'){
+    renderAdmTeam();
+    openModal('modal-team');
+  }else{
+    openModal('modal-profile');
+  }
+}
+function toggleRoleMenu(e, prefix){
+  e.stopPropagation();
+  const m = $(prefix + '-settings-menu');
+  if(m) m.classList.toggle('open');
+}
+
+function openRoleProfile(prefix){
+  const m = $(prefix + '-settings-menu');
+  if(m) m.classList.remove('open');
+  openModal('modal-profile');
+}
+
+// One listener closes whichever menu is open, on any of the four pages.
+document.addEventListener('click', () => {
+  document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open'));
+});
+
+// ── MEMBERS ──────────────────────────────────────────────
+async function renderAdmMembers(){
+  const [res, inv] = await Promise.all([
+    admApi('teams','members'),
+    admApi('teams','invites')
+  ]);
+  if(!res.success){ toast(res.message,'error'); return; }
+
+  _admMembers     = res.data.members;
+
+  const me = currentUser ? currentUser.user_id : 0;
+
+  $('adm-member-table').innerHTML = _admMembers.map(m=>{
+    const isSelf     = Number(m.user_id) === Number(me);
+    const otherAdmin = m.role === 'administrator' && !isSelf;
+
+    // An administrator cannot demote or remove a peer — teams.php
+    // refuses both, so the buttons are not offered either.
+    const actions = otherAdmin
+      ? '<span style="font-size:12px;color:var(--muted)">Administrator</span>'
+      : `<button class="action-link" onclick="openAssignRole(${m.user_id})">Change role</button>` +
+        (isSelf ? '' : ` <button class="action-link" style="color:var(--red);margin-left:10px" onclick="removeMember(${m.user_id})">Remove</button>`);
+
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:10px">
+        <div class="avatar ${ADM_ROLE_AV[m.role]||'av-amber'}" style="width:28px;height:28px;font-size:11px">${esc(m.name[0])}</div>
+        <div>
+          <div style="font-weight:600;color:var(--text);font-size:13px">${esc(m.name)}${isSelf?' <span style="color:var(--muted);font-weight:400">(you)</span>':''}</div>
+          <div style="font-size:11px;color:var(--muted)">${esc(m.email)}</div>
+        </div>
+      </div></td>
+      <td><span class="chip ${ADM_ROLE_CHIP[m.role]||'chip-sup'}">${ADM_ROLE_LABEL[m.role]||esc(m.role)}</span></td>
+      <td style="font-size:12.5px;color:var(--muted)">${m.joined_at ? fmtDate(m.joined_at) : '—'}</td>
+      <td>${actions}</td>
+    </tr>`;
+  }).join('');
+  $('adm-member-cards').innerHTML = _admMembers.map(m=>{
+    const isSelf     = Number(m.user_id) === Number(me);
+    const otherAdmin = m.role === 'administrator' && !isSelf;
+
+    const actions = otherAdmin
+      ? '<span style="font-size:12px;color:var(--muted)">Administrator</span>'
+      : `<button class="action-link" onclick="openAssignRole(${m.user_id})">Change role</button>` +
+        (isSelf ? '' : ` <button class="action-link" style="color:var(--red);margin-left:14px" onclick="removeMember(${m.user_id})">Remove</button>`);
+
+    return `<div class="m-card">
+      <div class="m-card-top">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="avatar ${ADM_ROLE_AV[m.role]||'av-amber'}" style="width:30px;height:30px;font-size:12px">${esc(m.name[0])}</div>
+          <div>
+            <div class="m-card-title">${esc(m.name)}${isSelf?' <span style="color:var(--muted);font-weight:400">(you)</span>':''}</div>
+            <div class="m-card-id">${esc(m.email)}</div>
+          </div>
+        </div>
+        <span class="chip ${ADM_ROLE_CHIP[m.role]||'chip-sup'}">${ADM_ROLE_LABEL[m.role]||esc(m.role)}</span>
+      </div>
+      <div class="m-card-loc">Joined ${m.joined_at ? fmtDate(m.joined_at) : '—'}</div>
+      <div class="m-card-footer">${actions}</div>
+    </div>`;
+  }).join('');
+
+  renderAdmInvites(inv.success ? inv.data.invitations : []);
+}
+
+function renderAdmInvites(invites){
+  _admInvites = invites;
+  const card = $('adm-invites-card');
+  const list = $('adm-invite-list');
+  if(!card || !list) return;
+
+  if(!invites.length){ card.style.display = 'none'; return; }
+  card.style.display = 'block';
+
+  list.innerHTML = invites.map(i=>{
+    const expired = Number(i.is_expired) === 1;
+    return `
+    <div class="event-row">
+      <div>
+        <div class="event-name">${esc(i.email)}</div>
+        <div class="event-by">
+          ${ADM_ROLE_LABEL[i.role]||esc(i.role)} ·
+          ${expired ? '<span style="color:var(--red)">Expired</span>' : 'Sent ' + timeAgo(i.created_at)}
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-shrink:0">
+        <button class="action-link" onclick="resendInvite(${i.invitation_id})">Resend</button>
+        <button class="action-link" style="color:var(--red)" onclick="revokeInvite(${i.invitation_id})">Cancel</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── INVITING ─────────────────────────────────────────────
+function openInviteModal(){
+  ['inv-first','inv-last','inv-email','inv-birth'].forEach(id => { if($(id)) $(id).value = ''; });
+  $('inv-role').value = 'field_worker';
+  const b = $('inv-birth');
+  if(b) b.max = new Date().toISOString().slice(0,10);
+  openModal('modal-invite');
+  setTimeout(()=>$('inv-first').focus(), 80);
+}
+
+async function sendInvite(){
+  const first = $('inv-first').value.trim();
+  const last  = $('inv-last').value.trim();
+  const email = $('inv-email').value.trim();
+  const birth = $('inv-birth').value;
+  const role  = $('inv-role').value;
+
+  if(!first || !last){ toast("Enter the member's first and last name",'error'); return; }
+  if(!email){ toast('Enter an email address','error'); return; }
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast('Enter a valid email address','error'); return; }
+  if(!birth){ toast('Enter their birthdate','error'); $('inv-birth').focus(); return; }
+
+  const btn = $('inv-send-btn');
+  btn.disabled = true;
+  const res = await admApi('teams','invite',{
+    first_name: first, last_name: last, email, birthdate: birth, role,
+  });
+  btn.disabled = false;
+
+  if(!res.success){ toast(res.message,'error'); return; }
+
+  closeModal('modal-invite');
+  toast(res.message,'success');
+  renderAdmMembers();
+  renderAdmDash();
+}
+
+async function resendInvite(id){
+  const res = await admApi('teams','resend_invite',{ invitation_id:id });
+  toast(res.message, res.success ? 'success' : 'error');
+  if(res.success) renderAdmMembers();
+}
+
+async function revokeInvite(id){
+  const inv = (_admInvites || []).find(x => Number(x.invitation_id) === Number(id));
+  const email = inv ? inv.email : 'this address';
+  if(!confirm(`Cancel the invitation to ${email}? The link stops working immediately.`)) return;
+  const res = await admApi('teams','revoke_invite',{ invitation_id:id });
+  toast(res.message, res.success ? 'success' : 'error');
+  if(res.success) renderAdmMembers();
+}
+
+// ── ROLE CHANGES ─────────────────────────────────────────
+function openAssignRole(userId){
+  const m = _admMembers.find(x=>Number(x.user_id)===Number(userId));
+  if(!m) return;
+
+  _arUserId = userId;
+  setText('ar-subtitle', `${m.name} · currently ${ADM_ROLE_LABEL[m.role]||m.role}`);
+  $('ar-role').value = m.role;
+
+    openModal('modal-assign-role');
+}
+
+async function confirmAssignRole(){
+  const role = $('ar-role').value;
+  const res  = await admApi('teams','assign_role',{ user_id:_arUserId, role });
+
+  if(!res.success){ toast(res.message,'error'); return; }
+
+  closeModal('modal-assign-role');
+  toast(res.message,'success');
+  renderAdmMembers();
+  renderAdmDash();
+}
+
+async function removeMember(userId){
+  const m = _admMembers.find(x=>Number(x.user_id)===Number(userId));
+  if(!m || !confirm(`Remove ${m.name} from this team?`)) return;
+
+  const res = await admApi('teams','remove_member',{ user_id:userId });
+  toast(res.message, res.success ? 'success' : 'error');
+  if(res.success){ renderAdmMembers(); renderAdmDash(); }
+}
+
+// ── TEAM SETTINGS ────────────────────────────────────────
+async function renderAdmTeam(){
+  const res = await admApi('teams','detail');
+  if(!res.success){ toast(res.message,'error'); return; }
+
+  _admTeam = res.data.team;
+  setText('adm-team-name', _admTeam.name);
+  setText('adm-team-meta', `${_admTeam.member_count} member${_admTeam.member_count==1?'':'s'} · created ${fmtDate(_admTeam.created_at)}`);
+  $('adm-team-name-inp').value = _admTeam.name;
+  $('adm-team-desc-inp').value = _admTeam.description || '';
+}
+
+async function saveTeamDetails(){
+  const name = $('adm-team-name-inp').value.trim();
+  const description = $('adm-team-desc-inp').value.trim();
+  if(!name){ toast('Team name cannot be empty','error'); return; }
+
+  const res = await admApi('teams','update_team',{ name, description });
+  toast(res.message, res.success ? 'success' : 'error');
+  if(res.success){ renderAdmTeam(); renderAdmDash(); }
+}
+
+
+// ── LOGS ─────────────────────────────────────────────────
 async function renderAdmLogs(){
-  const res  = await fetch('api/logs.php?action=list&limit=200', { credentials:'include' });
-  const data = await res.json();
+  const data = await admApi('logs','list&limit=200');
   const logs = data.success ? data.data.logs : [];
 
-  const el = document.getElementById('adm-logs-list');
+  const el = $('adm-logs-list');
   if(!logs.length){ el.innerHTML='<div class="empty-state"><p>No logs yet</p></div>'; return; }
   el.innerHTML = logs.map(l=>`
     <div class="event-row">
-      <div><div class="event-name">${l.action}</div><div class="event-by">by ${l.user_name || 'System'}</div></div>
+      <div><div class="event-name">${esc(l.action)}</div><div class="event-by">by ${esc(l.user_name || 'System')}</div></div>
       <div class="event-time">${fmtDate(l.logged_at)}</div>
     </div>`).join('');
 }
 
-function searchUsers(q){ renderAdmUsers(q.toLowerCase()); }
-
 async function clearLogs(){
   if(!confirm('Clear all audit logs?')) return;
-  const res  = await fetch('api/logs.php?action=clear', { method:'POST', credentials:'include' });
-  const data = await res.json();
-  if(data.success){
+  const res = await admApi('logs','clear',{});
+  if(res.success){
     renderAdmLogs();
     renderAdmEvents();
     toast('Logs cleared','info');
-  } else {
-    toast(data.message || 'Failed to clear logs', 'error');
-  }
-}
-
-async function deactivateUser(userId){
-  const u = _admUsersCache.find(u=>u.user_id===userId);
-  if(!u || !confirm(`Deactivate ${u.name}?`)) return;
-
-  const res = await fetch('api/users.php?action=edit', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: u.user_id, name: u.name, email: u.email, role: u.role, is_active: 0 })
-  });
-  const data = await res.json();
-
-  if(data.success){
-    toast(`${u.name} deactivated`, 'info');
-    renderAdmUsers();
-  } else {
-    toast(data.message || 'Failed to deactivate user', 'error');
-  }
-}
-
-async function createUser(){
-  const name  = $('#cu-name').value.trim();
-  const email = $('#cu-email').value.trim();
-  const role  = $('#cu-role').value;
-  const pass  = $('#cu-pass').value.trim();
-  if(!name||!email||!pass){ toast('Please fill all required fields','error'); return; }
-  if(pass.length < 8){ toast('Password must be at least 8 characters','error'); return; }
-
-  const res = await fetch('api/users.php?action=create', {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, email, password: pass, role })
-  });
-  const data = await res.json();
-
-  if(data.success){
-    closeModal('modal-create-user');
-    toast(`User ${name} created successfully`,'success');
-    renderAdmUsers();
-    renderAdmDash();
-    ['cu-name','cu-email','cu-pass'].forEach(id=>{document.getElementById(id).value=''});
-  } else {
-    toast(data.message || 'Failed to create user', 'error');
+  }else{
+    toast(res.message || 'Failed to clear logs','error');
   }
 }
 
@@ -637,7 +877,6 @@ function exportRecords(){
 // ════════════════════════════════════════
 // REPORT SUBMISSION
 // ════════════════════════════════════════
-let photoDataUrls = [];
 
 // selectedReportPhotos holds { file, dataUrl } for every photo currently
 // staged for this submission. New picks are added on top, not replaced.
@@ -737,6 +976,7 @@ async function submitReport(){
 
   // attach the first selected photo, if any (backend only accepts one)
   window.selectedReportPhotos.forEach(p => fd.append('photos[]', p.file));
+  fd.append('csrf_token', window.CSRF_TOKEN || '');
 
   const res = await fetch('api/reports.php?action=submit', {
     method: 'POST',
@@ -777,7 +1017,7 @@ async function openAssign(reportId){
   const workers = wData.success ? wData.data.users : [];
   const sel = document.getElementById('a-worker');
   sel.innerHTML = '<option value="">Select field worker...</option>' +
-    workers.map(u=>`<option value="${u.user_id}">${u.name}</option>`).join('');
+    workers.map(u=>`<option value="${u.user_id}">${esc(u.name)}</option>`).join('');
 
   openModal('modal-assign');
 }
@@ -793,7 +1033,7 @@ async function assignWorkOrder(){
   const res = await fetch('api/workorders.php?action=create', {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
     body: JSON.stringify({
       report_id:    reportId,
       assigned_to:  worker,
@@ -827,7 +1067,7 @@ async function openUpdateTask(woId){
   document.getElementById('ut-cur-status').value = cap(w.status.replace('_',' '));
   document.getElementById('ut-status').value = 'in_progress';
   document.getElementById('ut-remarks').value = '';
-  taskPhotoUrls=[];
+  window.selectedTaskPhotos = [];
   document.getElementById('task-photo-preview').innerHTML='';
   openModal('modal-update-task');
 }
@@ -843,6 +1083,7 @@ async function updateTaskStatus(){
   fd.append('status',  status);
   fd.append('remarks', remarks);
   window.selectedTaskPhotos.forEach(p => fd.append('photos[]', p.file));
+  fd.append('csrf_token', window.CSRF_TOKEN || '');
 
   const res = await fetch('api/workorders.php?action=update_status', {
     method: 'POST',
@@ -875,13 +1116,13 @@ async function openReportDetail(reportId){
   document.getElementById('rd-id').textContent    = r.report_code;
   document.getElementById('rd-body').innerHTML = `
     ${photos.length?`<div class="photo-preview" style="margin-bottom:16px">${photos.map((p,i)=>`<img src="${p.file_path}" class="photo-view-thumb" onclick="openLightbox(window.currentDetailPhotos, ${i})">`).join('')}</div>`:''}
-    <div class="detail-row"><span class="detail-label">Type</span><span class="detail-value">${r.issue_type}</span></div>
-    <div class="detail-row"><span class="detail-label">Location</span><span class="detail-value">${r.location_text}</span></div>
+    <div class="detail-row"><span class="detail-label">Type</span><span class="detail-value">${esc(r.issue_type)}</span></div>
+    <div class="detail-row"><span class="detail-label">Location</span><span class="detail-value">${esc(r.location_text)}</span></div>
     <div class="detail-row"><span class="detail-label">Severity</span><span class="detail-value"><span class="badge badge-${r.severity}">${cap(r.severity)}</span></span></div>
     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${statusBadge(r.status)}</span></div>
-    <div class="detail-row"><span class="detail-label">Inspector</span><span class="detail-value">${r.submitted_by_name}</span></div>
+    <div class="detail-row"><span class="detail-label">Inspector</span><span class="detail-value">${esc(r.submitted_by_name)}</span></div>
     <div class="detail-row"><span class="detail-label">Submitted</span><span class="detail-value">${fmtDate(r.submitted_at)}</span></div>
-    <div style="margin-top:14px"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Description</div><div style="font-size:13px;color:var(--label);line-height:1.6">${r.description}</div></div>`;
+    <div style="margin-top:14px"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Description</div><div style="font-size:13px;color:var(--label);line-height:1.6">${esc(r.description)}</div></div>`;
   openModal('modal-report-detail');
 }
 
@@ -901,14 +1142,14 @@ async function openWODetail(woId){
   document.getElementById('rd-title').textContent = 'Work Order: '+w.wo_code;
   document.getElementById('rd-id').textContent    = w.report_title;
   document.getElementById('rd-body').innerHTML = `
-    <div class="detail-row"><span class="detail-label">Location</span><span class="detail-value">${w.location_text}</span></div>
+    <div class="detail-row"><span class="detail-label">Location</span><span class="detail-value">${esc(w.location_text)}</span></div>
     <div class="detail-row"><span class="detail-label">Priority</span><span class="detail-value"><span class="badge badge-${w.severity}">${cap(w.severity)}</span></span></div>
-    <div class="detail-row"><span class="detail-label">Assigned To</span><span class="detail-value">${w.assigned_to_name || 'Unassigned'}</span></div>
+    <div class="detail-row"><span class="detail-label">Assigned To</span><span class="detail-value">${esc(w.assigned_to_name || 'Unassigned')}</span></div>
     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${woStatusBadge(w.status)}</span></div>
     <div class="detail-row"><span class="detail-label">Created</span><span class="detail-value">${fmtDate(w.created_at)}</span></div>
     ${w.updated_at?`<div class="detail-row"><span class="detail-label">Last Updated</span><span class="detail-value">${fmtDate(w.updated_at)}</span></div>`:''}
-    ${w.instructions?`<div style="margin-top:14px"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Work Instructions</div><div style="font-size:13px;color:var(--label);line-height:1.6">${w.instructions}</div></div>`:''}
-    ${lastUpdate?`<div style="margin-top:14px"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Latest Activity Report</div><div style="font-size:13px;color:var(--label);line-height:1.6">${lastUpdate.remarks}</div></div>`:''}
+    ${w.instructions?`<div style="margin-top:14px"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Work Instructions</div><div style="font-size:13px;color:var(--label);line-height:1.6">${esc(w.instructions)}</div></div>`:''}
+    ${lastUpdate?`<div style="margin-top:14px"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Latest Activity Report</div><div style="font-size:13px;color:var(--label);line-height:1.6">${esc(lastUpdate.remarks)}</div></div>`:''}
     ${photoPaths.length?`<div class="photo-preview" style="margin-top:14px">${photoPaths.map((src,i)=>`<img src="${src}" class="photo-view-thumb" onclick="openLightbox(window.currentDetailPhotos, ${i})">`).join('')}</div>`:''}`;
   window.currentDetailPhotos = photoPaths; 
   openModal('modal-report-detail');
@@ -962,14 +1203,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }, { passive: true });
 });
 
-document.addEventListener('keydown', e => {
-  const ov = document.getElementById('lightbox-overlay');
-  if(!ov || !ov.classList.contains('open')) return;
-  if(e.key === 'Escape')     closeLightbox();
-  if(e.key === 'ArrowLeft')  lightboxNav(-1);
-  if(e.key === 'ArrowRight') lightboxNav(1);
-});
-
 // ════════════════════════════════════════
 // PROFILE
 // ════════════════════════════════════════
@@ -981,7 +1214,7 @@ function openModal(id){
     av.className = 'avatar '+avClasses[currentUser.role];
     av.style.cssText='width:64px;height:64px;font-size:24px;margin:0 auto 12px';
     document.getElementById('prof-name').textContent  = currentUser.name;
-    document.getElementById('prof-role').textContent  = cap(currentUser.role);
+    document.getElementById('prof-role').textContent  = ROLE_LABEL[currentUser.role] || cap(currentUser.role);
     document.getElementById('prof-name-inp').value    = currentUser.name;
     document.getElementById('prof-email-inp').value   = currentUser.email;
     document.getElementById('prof-pass').value        = '';
@@ -1003,7 +1236,7 @@ async function saveProfile(){
     const nameRes  = await fetch('api/users.php?action=self_edit', {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
       body: JSON.stringify({ name: newName })
     });
     const nameData = await nameRes.json();
@@ -1022,7 +1255,7 @@ async function saveProfile(){
     const passRes  = await fetch('api/auth.php?action=change_password', {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
       body: JSON.stringify({ current_password: currPass, new_password: newPass })
     });
     const passData = await passRes.json();
@@ -1084,9 +1317,9 @@ function renderReportTable(tbodyId, cardsId, reports, role){
     return;
   }
   if(tbody) tbody.innerHTML = reports.map(r=>`<tr>
-    <td class="id">${r.report_code}</td>
-    <td class="issue">${r.title}</td>
-    <td>${r.location_text}</td>
+    <td class="id">${esc(r.report_code)}</td>
+    <td class="issue">${esc(r.title)}</td>
+    <td>${esc(r.location_text)}</td>
     <td><span class="badge badge-${r.severity}">${cap(r.severity)}</span></td>
     <td>${fmtDate(r.submitted_at)}</td>
     <td>${statusBadge(r.status)}</td>
@@ -1094,8 +1327,8 @@ function renderReportTable(tbodyId, cardsId, reports, role){
   </tr>`).join('');
   if(cards) cards.innerHTML = reports.map(r=>`
     <div class="m-card">
-      <div class="m-card-top"><div><div class="m-card-title">${r.title}</div><div class="m-card-id">${r.report_code} • ${fmtDate(r.submitted_at)}</div></div><span class="badge badge-${r.severity}">${cap(r.severity)}</span></div>
-      <div class="m-card-loc">📍 ${r.location_text}</div>
+      <div class="m-card-top"><div><div class="m-card-title">${esc(r.title)}</div><div class="m-card-id">${esc(r.report_code)} • ${fmtDate(r.submitted_at)}</div></div><span class="badge badge-${r.severity}">${cap(r.severity)}</span></div>
+      <div class="m-card-loc">📍 ${esc(r.location_text)}</div>
       <div class="m-card-footer">${statusBadge(r.status)}<button class="action-link" onclick="openReportDetail('${r.report_id}')">Details</button></div>
     </div>`).join('');
 }
@@ -1105,6 +1338,11 @@ function renderReportTable(tbodyId, cardsId, reports, role){
 // ════════════════════════════════════════
 function $(id){ return document.getElementById(id.replace(/^#/,'')); }
 function setText(id,v){ const e=document.getElementById(id); if(e) e.textContent=v; }
+function esc(v){
+  return String(v ?? '').replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+  ));
+}
 function cap(s){ return s?s.charAt(0).toUpperCase()+s.slice(1):'' }
 function fmtDate(iso){ if(!iso) return '-'; const d=new Date(iso); return d.toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
 function timeAgo(iso){
@@ -1113,20 +1351,20 @@ function timeAgo(iso){
   if(diff<86400) return Math.floor(diff/3600)+'h ago';return Math.floor(diff/86400)+'d ago';
 }
 function statusBadge(s){
-  const m={pending:'badge-pending pending',assigned:'badge-assigned assigned',completed:'badge-completed completed',resolved:'badge-resolved resolved'};
-  const l={pending:'Pending',assigned:'Assigned',completed:'Completed',resolved:'Resolved'};
+  const m={pending:'badge-pending pending',assigned:'badge-assigned assigned',in_progress:'badge-inprogress',completed:'badge-completed completed',rejected:'badge-pending'};
+  const l={pending:'Pending',assigned:'Assigned',in_progress:'In Progress',completed:'Completed',rejected:'Rejected'};
   return `<span class="badge ${m[s]||'badge-pending'}">${l[s]||cap(s)}</span>`;
 }
 function woStatusBadge(s){
-  const m={'assigned':'badge-assigned','in-progress':'badge-inprogress','completed':'badge-completed','on-hold':'badge-pending'};
-  const l={'assigned':'Assigned','in-progress':'In Progress','completed':'Completed','on-hold':'On Hold'};
+  const m={'pending':'badge-pending','in_progress':'badge-inprogress','on_hold':'badge-pending','completed':'badge-completed'};
+  const l={'pending':'Pending','in_progress':'In Progress','on_hold':'On Hold','completed':'Completed'};
   return `<span class="badge ${m[s]||'badge-pending'}">${l[s]||cap(s)}</span>`;
 }
 function toast(msg, type='success'){
   const c = document.getElementById('toasts');
   const icons={success:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>',error:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',info:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'};
   const t = document.createElement('div');
-  t.className=`toast toast-${type}`;t.innerHTML=icons[type]+msg;c.appendChild(t);
+  t.className=`toast toast-${type}`;t.innerHTML=icons[type]+esc(msg);c.appendChild(t);
   setTimeout(()=>t.remove(),3500);
 }
 
@@ -1139,7 +1377,7 @@ const currentPageRole = document.body ? document.body.dataset.page : null;
 if(currentPageRole && PAGE_ROLE[currentPageRole]) initRolePage(currentPageRole);
 
 // Close modals on overlay click
-document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o) o.classList.remove('open')}));
+document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o) closeModal(o.id)}));
 
 // PWA
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
