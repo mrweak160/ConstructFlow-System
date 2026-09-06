@@ -94,8 +94,6 @@
           <div class="page-header">
             <div>
               <h1>Team Administration</h1>
-              <!-- Team name comes from the server on every load and is
-                   written here by app.js — never hardcoded in markup. -->
               <p id="adm-dash-sub">Loading team&hellip;</p>
             </div>
           </div>
@@ -178,10 +176,7 @@
   </div>
 </div>
 
-<!-- ══ INVITE MEMBER MODAL ═══════════════════════════════
-     The role chosen here is written onto the invitation row, and
-     auth.php reads it from there when the link is opened. It is not
-     re-sent by the person accepting, so it cannot be swapped. -->
+<!-- ══ INVITE MEMBER MODAL ═══════════════════════════════ -->
 <div class="overlay" id="modal-invite">
   <div class="modal" style="max-width:440px">
         <div class="modal-header">
@@ -211,8 +206,6 @@
       <div class="two-col" style="grid-template-columns:1fr 1fr;gap:12px">
         <div class="form-group">
           <label>Birthdate</label>
-          <!-- app.js sets max to today at load, so a future date can't
-               be picked. teams.php validates it again regardless. -->
           <input class="form-control" type="date" id="inv-birth"/>
         </div>
         <div class="form-group">

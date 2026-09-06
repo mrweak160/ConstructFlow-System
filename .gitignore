@@ -1,5 +1,3 @@
-# ConstructFlow — files that must never reach GitHub
-
 # Real credentials
 config/secrets.php
 config/db.php
@@ -16,7 +14,7 @@ uploads/reports/*
 # Composer
 vendor/
 
-# Diagnostic — must not be deployed
+# Diagnostic 
 mailtest.php
 
 # Editor / OS noise

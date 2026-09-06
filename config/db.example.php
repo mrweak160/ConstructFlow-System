@@ -1,7 +1,6 @@
 <?php
 // ConstructFlow — Database Configuration Example
 // Copy this file to config/db.php and fill in your credentials.
-// NEVER commit config/db.php to GitHub.
 
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'constructflow');
