@@ -69,11 +69,13 @@
 
 .auth-modal-body{padding:20px 24px 24px}
 
-/* ═══ STEP INDICATOR ═══
-   The steps are a real sequence — you cannot verify a code before
-   requesting one — so numbering here encodes order that matters,
-   rather than decorating. Completed steps collapse to a check. */
-.auth-steps{display:flex;align-items:center;gap:0;padding:18px 24px 4px}
+/* ═══ STEP INDICATOR ═══ */
+.auth-steps{display:flex;align-items:center;gap:0;padding:18px 20px 4px;overflow:hidden}
+@media(max-width:560px){
+  .auth-steps{padding:16px 14px 4px}
+  .auth-step-label{display:none}
+  .auth-step-bar{margin:0 6px}
+}
 .auth-step{display:flex;align-items:center;gap:7px;flex:0 0 auto}
 .auth-step-dot{
   width:22px;height:22px;border-radius:50%;flex-shrink:0;

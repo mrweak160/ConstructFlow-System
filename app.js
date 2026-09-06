@@ -65,6 +65,8 @@ async function initRolePage(pageKey){
   }
 
   refreshScreen(ROLE_SCREEN[requiredRole]);
+
+  initPasswordToggles();
 }
 
 // ════════════════════════════════════════
@@ -1368,6 +1370,36 @@ function toast(msg, type='success'){
   setTimeout(()=>t.remove(),3500);
 }
 
+// show password
+function initPasswordToggles(){
+  document.querySelectorAll('input[type="password"]').forEach(inp => {
+    if(inp.parentElement.classList.contains('pw-wrap')) return;   // already done
+
+    const wrap = document.createElement('div');
+    wrap.className = 'pw-wrap';
+    inp.parentNode.insertBefore(wrap, inp);
+    wrap.appendChild(inp);
+
+    const eye    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    const eyeOff = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pw-toggle';
+    btn.setAttribute('aria-label', 'Show password');
+    btn.innerHTML = eye;
+
+    btn.addEventListener('click', () => {
+      const showing = inp.type === 'text';
+      inp.type = showing ? 'password' : 'text';
+      btn.innerHTML = showing ? eye : eyeOff;
+      btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+      inp.focus();
+    });
+
+    wrap.appendChild(btn);
+  });
+}
 // ════════════════════════════════════════
 // PAGE INIT
 // Each HTML file sets <body data-page="..."> so this one shared

@@ -97,8 +97,8 @@ if ($method === 'POST' && $action === 'invite') {
     if ($birth >= date('Y-m-d')) {
         json_response(false, 'Birthdate must be in the past.', [], 400);
     }
-    if ($birth > date('Y-m-d', strtotime('-15 years'))) {
-        json_response(false, 'Team members must be at least 15 years old.', [], 400);
+    if ($birth > date('Y-m-d', strtotime('-18 years'))) {
+        json_response(false, 'Team members must be at least 18 years old.', [], 400);
     }
 
     if (!in_array($role, assignableBy($m['role']), true)) {
