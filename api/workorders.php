@@ -224,7 +224,8 @@ if ($method === 'POST' && $action === 'update_status') {
     )->execute([$woId, $actor['user_id'], $status, $remarks]);
     $updateId = (int)$db->lastInsertId();
 
-    foreach (handleMultiplePhotoUploads('photos', 'WO', $woId) as $photoPath) {
+     $photoResult = handleMultiplePhotoUploads('photos', 'WO', $woId);
+    foreach ($photoResult['saved'] as $photoPath) {
         $db->prepare(
             'INSERT INTO FieldWorkPhotos (update_id, file_path, file_name) VALUES (?, ?, ?)'
         )->execute([$updateId, $photoPath, basename($photoPath)]);
@@ -247,7 +248,10 @@ if ($method === 'POST' && $action === 'update_status') {
     logActivity($actor['user_id'], 'update_work_order', 'work_order', $woId,
         "{$actor['name']} updated work order {$w['wo_code']} to '$status'.", $teamId);
 
-    json_response(true, 'Work order status updated successfully.');
+    json_response(true, 'Work order status updated successfully.', [
+        'photo_warnings' => $photoResult['errors'],
+    ]);
+    
 }
 
 // ── GET ?action=stats ────────────────────────────────────────

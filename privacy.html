@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Privacy Policy — ConstructFlow</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="style-auth.css"/>
+<link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
+<style>
+body{background:var(--auth-page);margin:0;padding:40px 20px}
+.legal-page{max-width:680px;margin:0 auto;background:#fff;border-radius:14px;padding:40px 44px;box-shadow:0 4px 24px rgba(0,0,0,.06)}
+.legal-page-head{display:flex;align-items:center;gap:10px;margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #ececec}
+.legal-page-head img{width:32px;height:32px}
+.legal-page-head span{font-weight:800;font-size:16px;color:var(--auth-ink)}
+#legal-content h1{font-size:24px;color:var(--auth-ink);margin-bottom:4px}
+#legal-content h2{font-size:15px;color:var(--auth-ink);margin-top:26px;margin-bottom:6px}
+#legal-content p{font-size:13.5px;line-height:1.7;color:#3a4356;margin-bottom:10px}
+#legal-content p.short{font-style:italic;color:#6b7688}
+#legal-content ul{margin:0 0 12px 20px;padding:0}
+#legal-content li{font-size:13.5px;line-height:1.7;color:#3a4356;margin-bottom:6px}
+.legal-page-back{display:inline-block;margin-top:32px;font-size:13px;color:var(--auth-mute);text-decoration:none}
+.legal-page-back:hover{color:var(--auth-ink)}
+</style>
+</head>
+<body>
+<div class="legal-page">
+  <div class="legal-page-head">
+    <img src="logo/logo.svg" alt=""/>
+    <span>ConstructFlow</span>
+  </div>
+
+  <div id="legal-content">
+
+<h1>Privacy Policy</h1>
+<p><em>Last updated: September 1, 2026</em></p>
+
+<p>This Privacy Policy explains what personal information ConstructFlow collects, why, who can see it, and what rights you have over it.</p>
+
+<h2>1. What Information We Collect</h2>
+<p>Information you provide directly: name, email address, birthdate, gender, home address, and password (stored only as a bcrypt hash — never in readable form, and not something we can look up even if asked).</p>
+<p>Information created through your use of the system: inspection reports, photographs, work order updates and remarks, and an activity log of logins, logouts, role changes, and invitations, each recorded with the IP address the request came from.</p>
+<p>Location data: GPS coordinates are only recorded when you actively press the location button while filing an inspection report. This never happens automatically or in the background, and your browser asks your permission before it happens at all.</p>
+<p>We do not collect payment information, because the system has no payments. We do not use analytics or advertising trackers. We do not offer or use social media login, so we never receive anything from a third-party social account.</p>
+
+<h2>2. How We Use Your Information</h2>
+<p>Solely to operate the system: authenticating your account, letting administrators manage team membership and roles, associating reports and work orders with the right people and teams, sending verification codes and invitation emails, and maintaining the activity log for accountability.</p>
+<p>We do not use your information for advertising, marketing to you, or profiling. We do not sell personal information to anyone, under any circumstance.</p>
+
+<h2>3. Who Can See Your Information</h2>
+<p>Access follows your role on a team, not a company-wide policy:</p>
+<ul>
+  <li>Administrators of your team can see your name, email, role, and the date you joined;</li>
+  <li>Supervisors can see all inspection reports and work orders for the team, including who filed and who was assigned;</li>
+  <li>Field inspectors and field workers see the team's shared work and their own assignments;</li>
+  <li>Members of teams you don't belong to see none of your information — every query in the system is restricted to the team you're currently working in.</li>
+</ul>
+<p>If you join a team at your workplace, that team's administrator can see your account details and the work you record.</p>
+
+<h2>4. Third-Party Services</h2>
+<p>We use one third-party service: Brevo, to send verification codes and invitation emails. Brevo processes your email address and the content of the email it sends on our behalf; it does not have access to your reports, photos, or any other data in the system. We do not use advertising networks, analytics trackers, or any other third-party data-sharing arrangement.</p>
+
+<h2>5. Cookies and Tracking</h2>
+<p>ConstructFlow uses a single session cookie to keep you signed in. This cookie is not readable by JavaScript, is not sent to any other site, and is not used to track your activity across other websites. We do not use advertising cookies, and we do not use analytics tools that build a profile of your behavior.</p>
+<p>Because we don't perform the kind of cross-site tracking that browser "Do Not Track" settings are designed to stop, that signal doesn't change how the system behaves.</p>
+
+<h2>6. Where Your Information Is Stored</h2>
+<p>Data is held in a MySQL database on the hosting provider serving this deployment. It does not get transferred to other countries or shared with any other organization's servers. Passwords are hashed with bcrypt; verification codes and invitation tokens are hashed before storage so the values sent to your email cannot be reconstructed from a database copy. Connections use HTTPS.</p>
+
+<h2>7. How Long We Keep Your Information</h2>
+<p>We keep your account and the records associated with it for as long as your team exists and you use the system. If an administrator removes you from a team, your access to that team ends, but reports and work orders you already filed remain with the team — they are part of that team's inspection history, and removing them would leave gaps in a safety record other people may still rely on.</p>
+<p>Verification codes and invitation tokens expire automatically (10 minutes and 72 hours respectively) and unused ones are not retained beyond that window.</p>
+
+<h2>8. Children's Privacy</h2>
+<p>ConstructFlow is not intended for anyone under 18. We do not knowingly collect information from anyone younger, and account creation requires confirming a birthdate consistent with being at least 18 years old.</p>
+
+<h2>9. Your Rights</h2>
+<p>You may ask to see what personal information we hold about you, correct anything inaccurate, or ask that your account be deleted. Your name can be corrected directly from My Profile at any time. For anything else, contact us at the address below, or ask your team's administrator — since administrators manage team membership directly, many requests (such as removing you from a team) can be handled immediately at that level without needing to contact us at all.</p>
+<p>If your account is deleted at your request, we remove what we reasonably can, but records tied to a team's inspection history may be retained in de-identified or aggregate form where deleting them entirely would compromise the safety record of other team members' work.</p>
+
+<h2>10. Changes to This Policy</h2>
+<p>If we make a material change to this Policy, we will note it in the application before the change takes effect, and update the "Last updated" date above.</p>
+
+<h2>11. Contact</h2>
+<p>Questions about this Privacy Policy, or requests regarding your personal information, may be directed to: constructflow7@gmail.com</p>
+
+<p>See also our <a href="terms.html">Terms of Service</a>.</p>
+
+  </div>
+
+  <a href="#" onclick="history.back(); return false;" class="legal-page-back">&larr; Back</a>
+</div>
+</body>
+</html>

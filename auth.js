@@ -220,9 +220,11 @@ function checkRules(pass) {
   return {
     len:   pass.length >= 8,
     upper: /[A-Z]/.test(pass),
+    lower: /[a-z]/.test(pass),
     num:   /[0-9]/.test(pass),
   };
 }
+
 function paintRules(inputId, rulesId) {
   const pass = el(inputId) ? el(inputId).value : '';
   const r = checkRules(pass);
@@ -232,9 +234,9 @@ function paintRules(inputId, rulesId) {
 }
 function passwordOk(pass) {
   const r = checkRules(pass);
-  return r.len && r.upper && r.num;
+  return r.len && r.upper && r.lower && r.num;
 }
-const POLICY_TEXT = 'Password must contain at least 8 characters, 1 uppercase letter, and 1 number.';
+const POLICY_TEXT = 'Password must contain at least 8 characters, 1 uppercase letter, 1 lowercase letter, and 1 number.';
 
 // ── RESEND COOLDOWN ───────────────────────────────────────
 function startCooldown(btnId, seconds = 30) {
@@ -439,6 +441,47 @@ async function forgotReset() {
   el('l-pass').focus();
 }
 
+// ── LEGAL DOCUMENT MODAL ──────────────────────────────────
+async function openLegalModal(which) {
+  const url     = which === 'terms' ? 'terms.html' : 'privacy.html';
+  const heading = which === 'terms' ? 'Terms of Service' : 'Privacy Policy';
+
+  el('legal-heading').textContent = heading;
+  const area = el('legal-scroll-area');
+  area.innerHTML = '<p>Loading…</p>';
+
+  const btn = el('legal-close-btn');
+  btn.disabled = true;
+  btn.textContent = 'Scroll to the bottom to close';
+
+  openAuthModal('modal-legal');
+
+  try {
+    const res  = await fetch(url);
+    const html = await res.text();
+    const doc  = new DOMParser().parseFromString(html, 'text/html');
+    const body = doc.getElementById('legal-content');
+    area.innerHTML = body ? body.innerHTML : '<p>Could not load this document.</p>';
+  } catch (e) {
+    area.innerHTML = '<p>Could not load this document. Check your connection and try again.</p>';
+  }
+
+  // Reset scroll position and re-check on every scroll event.
+  area.scrollTop = 0;
+  area.onscroll = () => checkLegalScrollEnd(area, btn);
+  // Some short content may already fit without scrolling at all —
+  // check once immediately so it isn't stuck disabled forever.
+  setTimeout(() => checkLegalScrollEnd(area, btn), 100);
+}
+
+function checkLegalScrollEnd(area, btn) {
+  const reachedEnd = area.scrollTop + area.clientHeight >= area.scrollHeight - 4;
+  if (reachedEnd) {
+    btn.disabled = false;
+    btn.textContent = 'Close';
+  }
+}
+
 // ══════════════════════════════════════════════════════════
 // ON LOAD
 // ══════════════════════════════════════════════════════════
@@ -526,6 +569,12 @@ function ctPassword() {
 }
 
 async function ctComplete() {
+  
+  if (!el('ct-terms-agree').checked) {
+    showErr('ct-err-4', 'You must agree to the Terms of Service and Privacy Policy to continue.');
+    return;
+  }
+
   const team = el('ct-team').value.trim();
   const desc = el('ct-desc').value.trim();
 
@@ -539,6 +588,7 @@ async function ctComplete() {
     confirm_password: ctPass,
     team_name: team,
     team_description: desc,
+    terms_accepted: true,
   });
   busy('ct-btn-4', false);
 
@@ -631,6 +681,11 @@ function saNext() {
 }
 
 async function saComplete() {
+  if (!el('sa-terms-agree').checked) {
+    showErr('sa-err-2', 'You must agree to the Terms of Service and Privacy Policy to continue.');
+    return;
+  }
+  
   const pass    = el('sa-pass').value;
   const confirm = el('sa-pass2').value;
 
@@ -648,6 +703,7 @@ async function saComplete() {
     address:    el('sa-address').value.trim(),
     password: pass,
     confirm_password: confirm,
+    terms_accepted: true,
   });
   busy('sa-btn-2', false);
 

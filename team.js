@@ -127,8 +127,7 @@ async function load() {
   const active  = teams.filter(t => t.status === 'active');
   hasTeams = teams.length > 0;
 
-  // Exactly one active team with a real job role — no reason to make
-  // them choose, send them straight through.
+  // Exactly one active team with a real job role
   if (active.length === 1 && active[0].role !== 'member') {
     await openTeam(active[0].team_id, active[0].role);
     return;

@@ -57,7 +57,9 @@ CREATE TABLE Users (
   password_hash     VARCHAR(255)  NOT NULL,      -- bcrypt; never plain text
   is_active         TINYINT(1)    NOT NULL DEFAULT 1,
   created_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  terms_accepted_at DATETIME      DEFAULT NULL,
+  avatar_path       VARCHAR(255)  DEFAULT NULL
 ) ENGINE=InnoDB;
 
 -- ── PENDING REGISTRATIONS ─────────────────────────────────────
@@ -100,9 +102,6 @@ CREATE TABLE PasswordResetCodes (
 ) ENGINE=InnoDB;
 
 -- ── LOGIN ATTEMPTS ────────────────────────────────────────────
--- Anyone can reach the login form now that registration is self
--- service, so failed attempts are throttled: 5 failures per email
--- in 15 minutes locks further tries.
 CREATE TABLE LoginAttempts (
   attempt_id   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   email        VARCHAR(150) NOT NULL,
@@ -122,7 +121,6 @@ CREATE TABLE Teams (
   team_id      INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   name         VARCHAR(150) NOT NULL,
   description  VARCHAR(500) DEFAULT NULL,
-  join_code    CHAR(8)      NOT NULL UNIQUE,
   owner_id     INT UNSIGNED NOT NULL,            -- who created it (record only)
   is_active    TINYINT(1)   NOT NULL DEFAULT 1,
   created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -339,10 +337,10 @@ CREATE TABLE ActivityLogs (
   (3, 'Mike Inspector',  'male',              'inspector@constructflow.com',   NOW(), 'member', '$2y$12$qBpTSWSg9L6GFE06vL2BkOTRjEOZSqhEMEnaDqtJUFVZSmjqMBzXG'),
   (4, 'Dave Mechanic',   'male',              'fieldworker@constructflow.com', NOW(), 'member', '$2y$12$qBpTSWSg9L6GFE06vL2BkOTRjEOZSqhEMEnaDqtJUFVZSmjqMBzXG');
 
-INSERT INTO Teams (team_id, name, description, join_code, owner_id) VALUES
+INSERT INTO Teams (team_id, name, description, owner_id) VALUES
   (1, 'Demo Construction Team',
       'Seeded team for development and demonstration.',
-      'CFTEAM23', 1);
+      1);
 
 INSERT INTO TeamMembers (team_id, user_id, role, status, joined_at, assigned_at, assigned_by) VALUES
   (1, 1, 'administrator',   'active', NOW(), NOW(), 1),

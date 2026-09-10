@@ -155,10 +155,8 @@ function refreshInspector(){
     document.getElementById('insp-uname').textContent = currentUser.name;
     document.getElementById('insp-topname').textContent = currentUser.name;
     setText('insp-topemail', currentUser.email || '');
-    setText('insp-topav', currentUser.name[0]);
-    const av = currentUser.name[0];
-    document.getElementById('insp-av').textContent = av;
-    document.getElementById('insp-topav').textContent = av;
+    paintAvatar('insp-av',    currentUser.name, currentUser.avatar_path);
+    paintAvatar('insp-topav', currentUser.name, currentUser.avatar_path);
   }
   paintTeamHeader('insp');
   renderInspDash();
@@ -247,10 +245,8 @@ function refreshSupervisor(){
     document.getElementById('sup-uname').textContent = currentUser.name;
     document.getElementById('sup-topname').textContent = currentUser.name;
     setText('sup-topemail', currentUser.email || '');
-    setText('sup-topav', currentUser.name[0]);
-    const av = currentUser.name[0];
-    document.getElementById('sup-av').textContent = av;
-    document.getElementById('sup-topav').textContent = av;
+    paintAvatar('sup-av',    currentUser.name, currentUser.avatar_path);
+    paintAvatar('sup-topav', currentUser.name, currentUser.avatar_path);
   }
   paintTeamHeader('sup');
   renderSupDash();
@@ -465,10 +461,8 @@ function refreshFieldWorker(){
     document.getElementById('fw-uname').textContent = currentUser.name;
     document.getElementById('fw-topname').textContent = currentUser.name;
     setText('fw-topemail', currentUser.email || '');
-    setText('fw-topav', currentUser.name[0]);
-    const av = currentUser.name[0];
-    document.getElementById('fw-av').textContent = av;
-    document.getElementById('fw-topav').textContent = av;
+    paintAvatar('fw-av',    currentUser.name, currentUser.avatar_path);
+    paintAvatar('fw-topav', currentUser.name, currentUser.avatar_path);
   }
   paintTeamHeader('fw');
   renderFWQueue();
@@ -538,9 +532,8 @@ function refreshAdmin(){
     setText('adm-uname',   currentUser.name);
     setText('adm-topname', currentUser.name);
     setText('adm-topemail',currentUser.email || '');
-    const av = currentUser.name[0];
-    setText('adm-av',    av);
-    setText('adm-topav', av);
+    paintAvatar('adm-av',    currentUser.name, currentUser.avatar_path);
+    paintAvatar('adm-topav', currentUser.name, currentUser.avatar_path);
   }
     paintTeamHeader('adm');
   renderAdmDash();
@@ -622,6 +615,7 @@ function toggleSettingsMenu(e){
 function openSettings(which){
   $('adm-settings-menu').classList.remove('open');
   if(which === 'team'){
+    teamView();
     renderAdmTeam();
     openModal('modal-team');
   }else{
@@ -659,18 +653,18 @@ async function renderAdmMembers(){
 
   $('adm-member-table').innerHTML = _admMembers.map(m=>{
     const isSelf     = Number(m.user_id) === Number(me);
-    const otherAdmin = m.role === 'administrator' && !isSelf;
+    const isAdminRow = m.role === 'administrator';
 
-    // An administrator cannot demote or remove a peer — teams.php
-    // refuses both, so the buttons are not offered either.
-    const actions = otherAdmin
-      ? '<span style="font-size:12px;color:var(--muted)">Administrator</span>'
-      : `<button class="action-link" onclick="openAssignRole(${m.user_id})">Change role</button>` +
-        (isSelf ? '' : ` <button class="action-link" style="color:var(--red);margin-left:10px" onclick="removeMember(${m.user_id})">Remove</button>`);
-
-    return `<tr>
+    const actions = isAdminRow
+      ? (isSelf
+          ? '<span style="font-size:12px;color:var(--muted);display:inline-block;width:100px">Administrator</span>'
+          : `<span style="font-size:12px;color:var(--muted);display:inline-block;width:100px">Administrator</span><button class="action-link" style="color:var(--red)" onclick="removeMember(${m.user_id})">Remove</button>`)
+      : `<span style="display:inline-block;width:100px"><button class="action-link" onclick="openAssignRole(${m.user_id})">Change role</button></span>` +
+        `<button class="action-link" style="color:var(--red)" onclick="removeMember(${m.user_id})">Remove</button>`;
+        
+        return `<tr>
       <td><div style="display:flex;align-items:center;gap:10px">
-        <div class="avatar ${ADM_ROLE_AV[m.role]||'av-amber'}" style="width:28px;height:28px;font-size:11px">${esc(m.name[0])}</div>
+                ${avatarHtml(m.name, m.avatar_path, ADM_ROLE_AV[m.role]||'av-amber', 28, 11)}
         <div>
           <div style="font-weight:600;color:var(--text);font-size:13px">${esc(m.name)}${isSelf?' <span style="color:var(--muted);font-weight:400">(you)</span>':''}</div>
           <div style="font-size:11px;color:var(--muted)">${esc(m.email)}</div>
@@ -683,17 +677,19 @@ async function renderAdmMembers(){
   }).join('');
   $('adm-member-cards').innerHTML = _admMembers.map(m=>{
     const isSelf     = Number(m.user_id) === Number(me);
-    const otherAdmin = m.role === 'administrator' && !isSelf;
+    const isAdminRow = m.role === 'administrator';
 
-    const actions = otherAdmin
-      ? '<span style="font-size:12px;color:var(--muted)">Administrator</span>'
+    const actions = isAdminRow
+      ? (isSelf
+          ? '<span style="font-size:12px;color:var(--muted)">Administrator</span>'
+          : `<span style="font-size:12px;color:var(--muted)">Administrator</span> <button class="action-link" style="color:var(--red)" onclick="removeMember(${m.user_id})">Remove</button>`)
       : `<button class="action-link" onclick="openAssignRole(${m.user_id})">Change role</button>` +
-        (isSelf ? '' : ` <button class="action-link" style="color:var(--red);margin-left:14px" onclick="removeMember(${m.user_id})">Remove</button>`);
+        ` <button class="action-link" style="color:var(--red);margin-left:14px" onclick="removeMember(${m.user_id})">Remove</button>`;
 
     return `<div class="m-card">
       <div class="m-card-top">
-        <div style="display:flex;align-items:center;gap:10px">
-          <div class="avatar ${ADM_ROLE_AV[m.role]||'av-amber'}" style="width:30px;height:30px;font-size:12px">${esc(m.name[0])}</div>
+        <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
+          ${avatarHtml(m.name, m.avatar_path, ADM_ROLE_AV[m.role]||'av-amber', 30, 12)}
           <div>
             <div class="m-card-title">${esc(m.name)}${isSelf?' <span style="color:var(--muted);font-weight:400">(you)</span>':''}</div>
             <div class="m-card-id">${esc(m.email)}</div>
@@ -830,8 +826,33 @@ async function renderAdmTeam(){
   _admTeam = res.data.team;
   setText('adm-team-name', _admTeam.name);
   setText('adm-team-meta', `${_admTeam.member_count} member${_admTeam.member_count==1?'':'s'} · created ${fmtDate(_admTeam.created_at)}`);
+
+  setText('team-view-desc',    _admTeam.description || 'No description');
+  setText('team-view-members', _admTeam.member_count);
+  setText('team-view-admins',  _admTeam.admin_count);
+  setText('team-view-invites', _admTeam.pending_invites ?? 0);
+  setText('team-view-created', fmtDate(_admTeam.created_at));
+
   $('adm-team-name-inp').value = _admTeam.name;
   $('adm-team-desc-inp').value = _admTeam.description || '';
+}
+
+function teamView(){
+  $('team-view').style.display       = 'block';
+  $('team-edit').style.display       = 'none';
+  $('team-close-btn').style.display  = '';
+  $('team-cancel-btn').style.display = 'none';
+  $('team-save-btn').style.display   = 'none';
+  $('team-edit-btn').style.display   = (_admTeam && _admTeam.can_rename === false) ? 'none' : '';
+}
+
+function teamEdit(){
+  $('team-view').style.display       = 'none';
+  $('team-edit').style.display       = 'block';
+  $('team-close-btn').style.display  = 'none';
+  $('team-edit-btn').style.display   = 'none';
+  $('team-cancel-btn').style.display = '';
+  $('team-save-btn').style.display   = '';
 }
 
 async function saveTeamDetails(){
@@ -841,7 +862,11 @@ async function saveTeamDetails(){
 
   const res = await admApi('teams','update_team',{ name, description });
   toast(res.message, res.success ? 'success' : 'error');
-  if(res.success){ renderAdmTeam(); renderAdmDash(); }
+  if(res.success){
+    await renderAdmTeam();
+    teamView();
+    renderAdmDash();
+  }
 }
 
 
@@ -990,6 +1015,12 @@ async function submitReport(){
   if(data.success){
     closeModal('modal-submit'); // also clears staged photos, see closeModal() below
     toast(`Report ${data.data.report_code} submitted successfully`, 'success');
+
+    const warnings = data.data.photo_warnings || [];
+    if(warnings.length){
+      toast(`${warnings.length} photo${warnings.length>1?'s':''} skipped: ${warnings.join(' ')}`, 'error');
+    }
+
     boundTaskId = null;
     renderInspDash();
   } else {
@@ -1097,6 +1128,12 @@ async function updateTaskStatus(){
   if(data.success){
     closeModal('modal-update-task'); // also clears staged photos, see closeModal()
     toast(`Task updated to ${cap(status)}`, 'success');
+
+    const warnings = data.data.photo_warnings || [];
+    if(warnings.length){
+      toast(`${warnings.length} photo${warnings.length>1?'s':''} skipped: ${warnings.join(' ')}`, 'error');
+    }
+
     renderFWQueue();
   } else {
     toast(data.message || 'Failed to update task', 'error');
@@ -1210,20 +1247,161 @@ document.addEventListener('DOMContentLoaded', () => {
 // ════════════════════════════════════════
 function openModal(id){
   if(id==='modal-profile' && currentUser){
-    const avClasses = {field_inspector:'av-amber',supervisor:'av-blue',field_worker:'av-green',administrator:'av-red'};
-    const av = document.getElementById('prof-av');
-    av.textContent = currentUser.name[0];
-    av.className = 'avatar '+avClasses[currentUser.role];
-    av.style.cssText='width:64px;height:64px;font-size:24px;margin:0 auto 12px';
-    document.getElementById('prof-name').textContent  = currentUser.name;
-    document.getElementById('prof-role').textContent  = ROLE_LABEL[currentUser.role] || cap(currentUser.role);
-    document.getElementById('prof-name-inp').value    = currentUser.name;
-    document.getElementById('prof-email-inp').value   = currentUser.email;
-    document.getElementById('prof-pass').value        = '';
+    paintProfile();
+    profileView(); 
   }
   document.getElementById(id).classList.add('open');
 }
 
+function paintProfile(){
+  const avClasses = {field_inspector:'av-amber',supervisor:'av-blue',field_worker:'av-green',administrator:'av-red'};
+  const av = document.getElementById('prof-av');
+  av.className = 'avatar '+avClasses[currentUser.role];
+  av.style.cssText='width:64px;height:64px;font-size:24px';
+  paintAvatar('prof-av', currentUser.name, currentUser.avatar_path);
+
+  paintPhotoControls();
+
+  const roleLabel = ROLE_LABEL[currentUser.role] || cap(currentUser.role);
+  document.getElementById('prof-name').textContent = currentUser.name;
+  document.getElementById('prof-role').textContent = roleLabel;
+
+  setText('prof-view-email', currentUser.email);
+  setText('prof-view-role',  roleLabel);
+  setText('prof-view-team',  currentUser.teamName || '—');
+
+  document.getElementById('prof-name-inp').value  = currentUser.name;
+  document.getElementById('prof-email-inp').value = currentUser.email;
+  document.getElementById('prof-curpass').value   = '';
+  document.getElementById('prof-pass').value      = '';
+}
+
+// A photo change is staged here until Save Changes commits it:
+//   undefined = no change    File = upload this    null = remove the current one
+let _pendingAvatar = undefined;
+
+// What the modal is showing right now, staged change included.
+function hasPhotoNow(){
+  if(_pendingAvatar === null) return false;
+  if(_pendingAvatar) return true;
+  return !!(currentUser && currentUser.avatar_path);
+}
+
+// Picking a file only previews it. Nothing reaches the server until save,
+// which is what makes Cancel able to genuinely undo it.
+function stageAvatar(input){
+  const file = input.files && input.files[0];
+  input.value = '';          // so re-picking the same file still fires onchange
+  if(!file) return;
+
+  // Mirrors the server checks so an obvious reject costs no round trip.
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)){
+    toast('Only JPG, PNG or WEBP images are accepted','error'); return;
+  }
+  if(file.size > 5 * 1024 * 1024){
+    toast('Photo must be smaller than 5MB','error'); return;
+  }
+
+  _pendingAvatar = file;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const av = document.getElementById('prof-av');
+    if(!av) return;
+    av.textContent = '';
+    av.style.backgroundImage    = 'url(' + JSON.stringify(e.target.result) + ')';
+    av.style.backgroundSize     = 'cover';
+    av.style.backgroundPosition = 'center';
+    paintPhotoControls();
+  };
+  reader.readAsDataURL(file);
+}
+
+function stageAvatarRemove(){
+  _pendingAvatar = null;
+  paintAvatar('prof-av', currentUser.name, null);
+  paintPhotoControls();
+}
+
+async function commitPendingAvatar(){
+  if(_pendingAvatar === undefined) return true;
+
+  if(_pendingAvatar === null){
+    const res = await fetch('api/users.php?action=avatar_remove', {
+      method:'POST', credentials:'include',
+      headers:{ 'Content-Type':'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
+      body:'{}'
+    }).then(r=>r.json()).catch(()=>({ success:false, message:'Cannot reach the server.' }));
+
+    if(!res.success){ toast(res.message,'error'); return false; }
+    currentUser.avatar_path = null;
+  }else{
+    const fd = new FormData();
+    fd.append('avatar', _pendingAvatar);
+    fd.append('csrf_token', window.CSRF_TOKEN || '');
+
+    let data;
+    try{
+      const r = await fetch('api/users.php?action=avatar_upload',
+        { method:'POST', credentials:'include', body: fd });
+      data = await r.json();
+    }catch(e){
+      toast('Cannot reach the server. Check your connection and try again.','error');
+      return false;
+    }
+    if(!data.success){ toast(data.message,'error'); return false; }
+    currentUser.avatar_path = data.data.avatar_path;
+  }
+
+  _pendingAvatar = undefined;
+  return true;
+}
+
+let _profEditing = false;
+
+function paintPhotoControls(){
+  const has   = hasPhotoNow();
+  const badge = document.getElementById('prof-photo-btn');
+  const rm    = document.getElementById('prof-photo-remove');
+  const av    = document.getElementById('prof-av');
+
+  if(badge) badge.style.display = _profEditing ? 'flex' : 'none';
+  if(rm)    rm.style.display    = (_profEditing && has) ? '' : 'none';
+  if(av)    av.style.cursor     = (!_profEditing && has) ? 'zoom-in' : 'default';
+}
+
+function viewAvatar(){
+  if(_profEditing || !currentUser || !currentUser.avatar_path) return;
+  const img = document.getElementById('avatar-full');
+  if(!img) return;
+  img.src = currentUser.avatar_path;
+  openModal('modal-avatar');
+}
+
+
+function profileView(){
+  document.getElementById('prof-view').style.display       = 'block';
+  document.getElementById('prof-edit').style.display       = 'none';
+  document.getElementById('prof-close-btn').style.display  = '';
+  document.getElementById('prof-edit-btn').style.display   = '';
+  document.getElementById('prof-cancel-btn').style.display = 'none';
+  document.getElementById('prof-save-btn').style.display   = 'none';
+  _profEditing   = false;
+  _pendingAvatar = undefined;
+  if(currentUser) paintAvatar('prof-av', currentUser.name, currentUser.avatar_path);
+  paintPhotoControls();
+}
+
+function profileEdit(){
+  document.getElementById('prof-view').style.display       = 'none';
+  document.getElementById('prof-edit').style.display       = 'block';
+  document.getElementById('prof-close-btn').style.display  = 'none';
+  document.getElementById('prof-edit-btn').style.display   = 'none';
+  document.getElementById('prof-cancel-btn').style.display = '';
+  document.getElementById('prof-save-btn').style.display   = '';
+  _profEditing = true;
+  paintPhotoControls();
+}
 async function saveProfile(){
   if(!currentUser) return;
 
@@ -1233,7 +1411,6 @@ async function saveProfile(){
 
   if(!newName){ toast('Name cannot be empty','error'); return; }
 
-  // Update name if it changed
   if(newName !== currentUser.name){
     const nameRes  = await fetch('api/users.php?action=self_edit', {
       method: 'POST',
@@ -1267,8 +1444,13 @@ async function saveProfile(){
     }
   }
 
-  closeModal('modal-profile');
+  const photoOk = await commitPendingAvatar();
+  if(!photoOk) return;
+
   toast('Profile updated successfully','success');
+  paintProfile();
+  repaintMyAvatars();
+  profileView();
   refreshScreen(ROLE_SCREEN[currentUser.role]);
 }
 
@@ -1339,7 +1521,38 @@ function renderReportTable(tbodyId, cardsId, reports, role){
 // UTILITIES
 // ════════════════════════════════════════
 function $(id){ return document.getElementById(id.replace(/^#/,'')); }
+
 function setText(id,v){ const e=document.getElementById(id); if(e) e.textContent=v; }
+
+// ── AVATARS ──────────────────────────────────────────────
+function paintAvatar(id, name, avatarPath){
+  const el = document.getElementById(id);
+  if(!el) return;
+  if(avatarPath){
+    el.textContent = '';
+    el.style.backgroundImage    = 'url(' + JSON.stringify(avatarPath) + ')';
+    el.style.backgroundSize     = 'cover';
+    el.style.backgroundPosition = 'center';
+  }else{
+    el.style.backgroundImage = '';
+    el.textContent = (name || '?').charAt(0).toUpperCase();
+  }
+}
+
+function avatarHtml(name, avatarPath, cls, size, fontSize){
+  const base = `class="avatar ${cls}" style="width:${size}px;height:${size}px;font-size:${fontSize}px`;
+  return avatarPath
+    ? `<div ${base};background-image:url('${esc(avatarPath)}');background-size:cover;background-position:center"></div>`
+    : `<div ${base}">${esc((name||'?').charAt(0).toUpperCase())}</div>`;
+}
+
+function repaintMyAvatars(){
+  ['adm','sup','insp','fw'].forEach(p => {
+    paintAvatar(p+'-av',    currentUser.name, currentUser.avatar_path);
+    paintAvatar(p+'-topav', currentUser.name, currentUser.avatar_path);
+  });
+}
+
 function esc(v){
   return String(v ?? '').replace(/[&<>"']/g, c => (
     {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]

@@ -19,8 +19,8 @@ if ($method === 'POST' && in_array($action, ['change_password', 'switch_team', '
 
 if ($method === 'POST' && $action === 'register_start') {
     $body      = getBody();
-    $firstName = clean($body['first_name'] ?? '');
-    $lastName  = clean($body['last_name']  ?? '');
+    $firstName = capitalizeWords(clean($body['first_name'] ?? ''));
+    $lastName  = capitalizeWords(clean($body['last_name']  ?? ''));
     $gender    = clean($body['gender']     ?? '');
     $birth     = clean($body['birthdate']  ?? '');
     $address   = clean($body['address']    ?? '');
@@ -29,6 +29,10 @@ if ($method === 'POST' && $action === 'register_start') {
     if (!$firstName || !$lastName || !$gender) {
         json_response(false, 'First name, last name, and gender are required.', [], 400);
     }
+    if (!nameIsLongEnough($firstName) || !nameIsLongEnough($lastName)) {
+        json_response(false, 'First and last name must be at least 2 characters.', [], 400);
+    }
+
     if (!in_array($gender, ['male', 'female', 'other', 'prefer_not_to_say'], true)) {
         json_response(false, 'Please select a gender option.', [], 400);
     }
@@ -174,9 +178,13 @@ if ($method === 'POST' && $action === 'register_complete') {
     $email   = strtolower(clean($body['email'] ?? ''));
     $pass    = $body['password']         ?? '';
     $confirm = $body['confirm_password'] ?? '';
-    $teamName = clean($body['team_name']        ?? '');
-    $teamDesc = clean($body['team_description'] ?? '');
+    $teamName      = clean($body['team_name']        ?? '');
+    $teamDesc      = clean($body['team_description'] ?? '');
+    $termsAccepted = (bool)($body['terms_accepted']  ?? false);
 
+    if (!$termsAccepted) {
+        json_response(false, 'You must agree to the Terms of Service and Privacy Policy to continue.', [], 400);
+    }
     if (mb_strlen($teamName) < 2) {
         json_response(false, 'Enter a name for your team.', [], 400);
     }
@@ -223,14 +231,14 @@ if ($method === 'POST' && $action === 'register_complete') {
         // account_type 'owner'
         $db->prepare(
             'INSERT INTO Users
-             (name, gender, birthdate, address, email, password_hash, email_verified_at, account_type)
-             VALUES (?, ?, ?, ?, ?, ?, NOW(), "owner")'
+             (name, gender, birthdate, address, email, password_hash, email_verified_at, account_type, terms_accepted_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW(), "owner", NOW())'
         )->execute([$fullName, $pending['gender'], $pending['birthdate'], $pending['address'], $email, $hash]);
         $userId = (int)$db->lastInsertId();
         if ($teamName !== '') {
             $db->prepare(
-                'INSERT INTO Teams (name, description, join_code, owner_id) VALUES (?, ?, ?, ?)'
-            )->execute([$teamName, $teamDesc ?: null, generateJoinCode(), $userId]);
+                'INSERT INTO Teams (name, description, owner_id) VALUES (?, ?, ?)'
+            )->execute([$teamName, $teamDesc ?: null, $userId]);
             $teamId = (int)$db->lastInsertId();
 
             $db->prepare(
@@ -299,21 +307,29 @@ if ($method === 'GET' && $action === 'invite_lookup') {
 if ($method === 'POST' && $action === 'invite_accept') {
     $body      = getBody();
     $token     = clean($body['token']      ?? '');
-    $firstName = clean($body['first_name'] ?? '');
-    $lastName  = clean($body['last_name']  ?? '');
+    $firstName = capitalizeWords(clean($body['first_name'] ?? ''));
+    $lastName  = capitalizeWords(clean($body['last_name']  ?? ''));
     $birth     = clean($body['birthdate']  ?? '');
     $gender    = clean($body['gender']     ?? '');
     $address   = clean($body['address']    ?? '');
     $pass      = $body['password']         ?? '';
     $confirm   = $body['confirm_password'] ?? '';
+    $termsAccepted = (bool)($body['terms_accepted'] ?? false);
 
     $inv = findLiveInvitation($token);
     if (!$inv) {
         json_response(false, 'This invitation link is no longer valid. Ask your administrator to send a new one.', [], 404);
     }
 
-        if (!$firstName || !$lastName) {
+    if (!$termsAccepted) {
+        json_response(false, 'You must agree to the Terms of Service and Privacy Policy to continue.', [], 400);
+    }
+
+    if (!$firstName || !$lastName) {
         json_response(false, 'First name and last name are required.', [], 400);
+    }
+    if (!nameIsLongEnough($firstName) || !nameIsLongEnough($lastName)) {
+        json_response(false, 'First and last name must be at least 2 characters.', [], 400);
     }
     if (mb_strlen($firstName) > 60 || mb_strlen($lastName) > 60) {
         json_response(false, 'Names are too long (60 characters max each).', [], 400);
@@ -360,8 +376,8 @@ if ($method === 'POST' && $action === 'invite_accept') {
     try {
         $db->prepare(
             'INSERT INTO Users
-             (name, gender, birthdate, address, email, password_hash, email_verified_at, account_type)
-             VALUES (?, ?, ?, ?, ?, ?, NOW(), "member")'
+             (name, gender, birthdate, address, email, password_hash, email_verified_at, account_type, terms_accepted_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW(), "member", NOW())'
         )->execute([$fullName, $gender, $birth, $address, $inv['email'], $hash]);
         $userId = (int)$db->lastInsertId();
 
@@ -491,7 +507,11 @@ if ($method === 'POST' && $action === 'login') {
         json_response(false, 'Too many failed attempts. Please try again in ' . LOGIN_WINDOW_MIN . ' minutes.', [], 429);
     }
 
-    $stmt = getDB()->prepare('SELECT * FROM Users WHERE email = ? LIMIT 1');
+    $stmt = getDB()->prepare(
+    'SELECT user_id, name, email, password_hash, is_active, account_type
+     FROM Users WHERE email = ? LIMIT 1'
+    );
+    
     $stmt->execute([$email]);
     $user = $stmt->fetch();
 
@@ -556,6 +576,7 @@ if ($method === 'GET' && $action === 'me') {
             // Whether this account may create a team. team.js uses it
             // to pick which of the three gate screens to show.
             'account_type' => $user['account_type'],
+            'avatar_path'  => $user['avatar_path'],
         ],
         'memberships'    => $memberships,
         'active_team_id' => $membership['team_id'] ?? null,

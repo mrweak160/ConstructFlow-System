@@ -256,38 +256,68 @@ function sendMail(string $toEmail, string $toName, string $subject, string $html
 }
 
 // ════════════════════════════════════════════════════════════
-// TEMPLATES (unchanged)
+// EMAIL
 // ════════════════════════════════════════════════════════════
 
-function codeEmailBody(string $name, string $code, string $purposeLine): string
+function emailLogoUrl(): string
 {
-    $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
-    $safeCode = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
+    return APP_URL . '/logo/icon-512.png';
+}
+
+function codeEmailBody(string $name, string $code, string $heading, string $purposeLine): string
+{
+    $safeName    = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+    $safeCode    = htmlspecialchars($code, ENT_QUOTES, 'UTF-8');
+    $safeHeading = htmlspecialchars($heading, ENT_QUOTES, 'UTF-8');
+    $logoUrl     = emailLogoUrl();
+
     return <<<HTML
-<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px">
-  <h2 style="color:#f59e0b;margin:0 0 16px">ConstructFlow</h2>
-  <p>Hello {$safeName},</p>
-  <p>{$purposeLine}</p>
-  <p style="margin:28px 0;text-align:center">
-    <span style="display:inline-block;background:#0f1117;color:#f59e0b;
-                 font-size:28px;font-weight:bold;letter-spacing:6px;
-                 padding:16px 24px;border-radius:8px;font-family:monospace">{$safeCode}</span>
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;text-align:center">
+  <img src="{$logoUrl}" alt="ConstructFlow" width="56" height="56" style="display:block;margin:0 auto 20px;border-radius:12px"/>
+
+  <p style="font-size:16px;color:#1a1a2e;margin:0 0 24px">
+    {$safeHeading}<br><b>{$safeName}</b>
   </p>
-  <p style="font-size:13px;color:#555">
-    This code expires in 10 minutes. If you didn't request this, you can ignore this email.
-  </p>
+
+  <div style="border:1px solid #d1d5db;border-radius:12px;padding:24px;text-align:left">
+    <p style="margin:0 0 16px;font-size:14px;color:#1a1a2e">{$purposeLine}</p>
+
+    <p style="margin:0 0 20px;text-align:center">
+      <span style="display:inline-block;color:#f59e0b;font-size:34px;
+                   font-weight:800;letter-spacing:8px">{$safeCode}</span>
+    </p>
+
+    <p style="margin:0 0 10px;font-size:13.5px;color:#374151">
+      This code expires in <b>10 minutes</b> and can only be used once.
+    </p>
+    <p style="margin:0 0 20px;font-size:13.5px;font-weight:700;color:#1a1a2e">
+      Don't share your code with anyone.
+    </p>
+
+    <p style="margin:0;font-size:13.5px;color:#374151">
+      Thank you,<br>The ConstructFlow Team
+    </p>
+  </div>
 </div>
 HTML;
 }
 
 function registrationCodeEmailBody(string $name, string $code): string
 {
-    return codeEmailBody($name, $code, 'Enter this code to verify your email address and finish creating your account.');
+    return codeEmailBody(
+        $name, $code,
+        'Please verify your account,',
+        'Here is your ConstructFlow verification code:'
+    );
 }
 
 function passwordResetCodeEmailBody(string $name, string $code): string
 {
-    return codeEmailBody($name, $code, 'Enter this code to reset your ConstructFlow password.');
+    return codeEmailBody(
+        $name, $code,
+        'Reset your password,',
+        'Here is your ConstructFlow password reset code:'
+    );
 }
 
 function inviteEmailBody(
@@ -301,29 +331,47 @@ function inviteEmailBody(
     $safeTeam    = htmlspecialchars($teamName,    ENT_QUOTES, 'UTF-8');
     $safeRole    = htmlspecialchars($roleLabel,   ENT_QUOTES, 'UTF-8');
     $safeUrl     = htmlspecialchars($url,         ENT_QUOTES, 'UTF-8');
-    $hours        = INVITE_TTL_HOURS;
+    $hours       = INVITE_TTL_HOURS;
+    $logoUrl     = emailLogoUrl();
 
     $whatHappens = $hasAccount
-        ? 'You already have a ConstructFlow account, so opening the link will ask you to log in and then add you to the team.'
-        : 'Opening the link lets you set your name and a password. You will not need a verification code — this link is your proof of address.';
+        ? 'You already have a ConstructFlow account. Opening the link will ask you to log in, then add you to the team.'
+        : 'Opening the link will direct you to ConstructFlow to set up your account.';
 
     return <<<HTML
-<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px">
-  <h2 style="color:#f59e0b;margin:0 0 16px">ConstructFlow</h2>
-  <p>{$safeInviter} has invited you to join <b>{$safeTeam}</b> as a <b>{$safeRole}</b>.</p>
-  <p>{$whatHappens}</p>
-  <p style="margin:28px 0;text-align:center">
-    <a href="{$safeUrl}"
-       style="display:inline-block;background:#1a1a2e;color:#f59e0b;
-              font-size:15px;font-weight:bold;text-decoration:none;
-              padding:14px 28px;border-radius:8px">Accept invitation</a>
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;text-align:center">
+  <img src="{$logoUrl}" alt="ConstructFlow" width="56" height="56" style="display:block;margin:0 auto 20px;border-radius:12px"/>
+
+  <p style="font-size:16px;color:#1a1a2e;margin:0 0 24px">
+    <b>{$safeInviter}</b> has invited you to join <b>{$safeTeam}</b> as a <b>{$safeRole}</b>.
   </p>
-  <p style="font-size:12px;color:#555;word-break:break-all">
-    If the button doesn't work, paste this into your browser:<br>{$safeUrl}
-  </p>
-  <p style="font-size:13px;color:#555">
-    This invitation expires in {$hours} hours. If you weren't expecting it, you can ignore this email.
-  </p>
+
+  <div style="border:1px solid #d1d5db;border-radius:12px;padding:24px;text-align:left">
+    <p style="margin:0 0 20px;font-size:14px;color:#1a1a2e">{$whatHappens}</p>
+
+    <p style="margin:0 0 20px;text-align:center">
+      <a href="{$safeUrl}"
+         style="display:inline-block;border:2px solid #f59e0b;color:#f59e0b;
+                background:#ffffff;font-size:18px;font-weight:800;
+                text-decoration:none;padding:16px 32px;border-radius:10px">
+        Accept Invitation
+      </a>
+    </p>
+
+    <p style="margin:0 0 10px;font-size:13.5px;color:#374151">
+      This invitation expires in <b>{$hours} hours</b> and can only be used once.
+    </p>
+    <p style="margin:0 0 14px;font-size:12.5px;color:#374151;word-break:break-all">
+      If the button doesn't work, paste this into your browser:<br><b>{$safeUrl}</b>
+    </p>
+    <p style="margin:0 0 20px;font-size:13.5px;font-weight:700;color:#1a1a2e">
+      Don't share your link with anyone.
+    </p>
+
+    <p style="margin:0;font-size:13.5px;color:#374151">
+      Thank you,<br>The ConstructFlow Team
+    </p>
+  </div>
 </div>
 HTML;
 }

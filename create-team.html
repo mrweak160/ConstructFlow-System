@@ -134,9 +134,10 @@
           </div>
 
           <div class="auth-rules" id="ct-rules">
-            <div class="auth-rule" data-rule="len"><span class="auth-rule-mark">&#10003;</span>At least 8 characters</div>
-            <div class="auth-rule" data-rule="upper"><span class="auth-rule-mark">&#10003;</span>At least 1 uppercase letter</div>
-            <div class="auth-rule" data-rule="num"><span class="auth-rule-mark">&#10003;</span>At least 1 number</div>
+            <div class="auth-rule" data-rule="len"><span class="auth-rule-mark">✓</span>At least 8 characters</div>
+            <div class="auth-rule" data-rule="upper"><span class="auth-rule-mark">✓</span>At least 1 uppercase letter</div>
+            <div class="auth-rule" data-rule="lower"><span class="auth-rule-mark">✓</span>At least 1 lowercase letter</div>
+            <div class="auth-rule" data-rule="num"><span class="auth-rule-mark">✓</span>At least 1 number</div>
           </div>
 
           <div class="auth-field">
@@ -170,6 +171,16 @@
           <button class="auth-btn" id="ct-btn-4" onclick="ctComplete()">Create team</button>
         </div>
 
+        <div class="auth-field" style="display:flex;align-items:flex-start;gap:8px;margin-top:16px">
+          <input type="checkbox" id="ct-terms-agree" style="margin-top:3px"/>
+          <label for="ct-terms-agree" style="font-size:13px;line-height:1.5">
+            I have read and agree to the
+            <a href="#" onclick="openLegalModal('terms'); return false;"><b>Terms of Service</b></a>
+            and
+            <a href="#" onclick="openLegalModal('privacy'); return false;"><b>Privacy Policy</b></a>.
+          </label>
+        </div>
+
       </div>
     </div>
 
@@ -180,6 +191,26 @@
       <a href="index.html" class="login-home">&larr; Return</a>
     </div>
 
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     LEGAL DOCUMENT MODAL - terms of service, privacy policy check box
+     ══════════════════════════════════════════════════════ -->
+<div class="auth-overlay" id="modal-legal" role="dialog" aria-modal="true" aria-labelledby="legal-heading">
+  <div class="auth-modal" style="max-width:600px">
+    <div class="auth-modal-head">
+      <div><h2 id="legal-heading">Loading…</h2></div>
+      <button class="auth-x" onclick="closeAuthModal('modal-legal')" aria-label="Close">&times;</button>
+    </div>
+    <div class="auth-modal-body">
+      <div id="legal-scroll-area" style="max-height:360px;overflow-y:auto;padding-right:8px;font-size:13.5px;line-height:1.6;color:var(--auth-mute)">
+        <p>Loading…</p>
+      </div>
+      <button class="auth-btn" id="legal-close-btn" onclick="closeAuthModal('modal-legal')" style="margin-top:16px" disabled>
+        Scroll to the bottom to close
+      </button>
+    </div>
   </div>
 </div>
 

@@ -38,10 +38,9 @@ if ($method === 'POST' && $action === 'create') {
     $db = getDB();
     $db->beginTransaction();
     try {
-        $code = generateJoinCode();
 
-        $db->prepare('INSERT INTO Teams (name, description, join_code, owner_id) VALUES (?, ?, ?, ?)')
-           ->execute([$name, $desc ?: null, $code, $user['user_id']]);
+        $db->prepare('INSERT INTO Teams (name, description, owner_id) VALUES (?, ?, ?)')
+           ->execute([$name, $desc ?: null, $user['user_id']]);
         $teamId = (int)$db->lastInsertId();
 
         // The creator is the administrator, active immediately
@@ -74,14 +73,17 @@ if ($method === 'POST' && $action === 'invite') {
     $m     = requireTeamRole('administrator');
     $actor = currentUser();
     $body  = getBody();
-    $first = clean($body['first_name'] ?? '');
-    $last  = clean($body['last_name']  ?? '');
+    $first = capitalizeWords(clean($body['first_name'] ?? ''));
+    $last  = capitalizeWords(clean($body['last_name']  ?? ''));
     $email = strtolower(clean($body['email'] ?? ''));
     $birth = clean($body['birthdate']  ?? '');
     $role  = clean($body['role'] ?? '');
 
     if (!$first || !$last) {
         json_response(false, "Enter the member's first and last name.", [], 400);
+    }
+    if (!nameIsLongEnough($first) || !nameIsLongEnough($last)) {
+        json_response(false, "The member's first and last name must be at least 2 characters.", [], 400);
     }
     if (mb_strlen($first) > 60 || mb_strlen($last) > 60) {
         json_response(false, 'Names are too long (60 characters max each).', [], 400);
@@ -309,7 +311,7 @@ if ($method === 'GET' && $action === 'members') {
 
     $stmt = $db->prepare(
         'SELECT tm.membership_id, tm.user_id, tm.role, tm.status, tm.joined_at,
-                u.name, u.email
+                u.name, u.email, u.avatar_path
          FROM TeamMembers tm
          JOIN Users u ON tm.user_id = u.user_id
          WHERE tm.team_id = ? AND tm.status = "active"
@@ -405,7 +407,7 @@ if ($method === 'POST' && $action === 'remove_member') {
         json_response(false, 'User is required.', [], 400);
     }
     if ($userId === $actor['user_id']) {
-        json_response(false, 'Use "Leave team" to remove yourself.', [], 400);
+        json_response(false, 'You cannot remove yourself. Ask another administrator to remove you from the Members page.', [], 400);
     }
 
     $db   = getDB();

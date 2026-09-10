@@ -53,6 +53,10 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:
 .sidebar-user{padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);cursor:pointer}
 .sidebar-user:hover{background:rgba(255,255,255,.03)}
 .avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+.avatar-wrap{position:relative;width:64px;height:64px;margin:0 auto 12px}
+.avatar-edit-badge{position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:var(--amber);color:#1a1a2e;border:2px solid var(--card);padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.avatar-edit-badge:hover{background:var(--amber-dk)}
+.avatar-edit-badge svg{width:13px;height:13px}
 .av-amber{background:var(--amber);color:#1a1a2e}
 .av-blue{background:var(--blue);color:#fff}
 .av-green{background:var(--green);color:#fff}
@@ -258,6 +262,10 @@ td.issue{font-weight:500;color:var(--text)}
 .btn-close:hover{color:var(--text);background:var(--border)}
 .modal-body{padding:24px;overflow-y:auto;flex:1}
 .modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0}
+.prof-row,.info-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
+.prof-row:last-child,.info-row:last-child{border-bottom:none}
+.prof-label,.info-label{font-size:12px;color:var(--muted);flex-shrink:0}
+.prof-value,.info-value{font-size:13px;font-weight:600;color:var(--text);text-align:right;min-width:0;word-break:break-word}
 
 /* FORM */
 .form-group{margin-bottom:18px}
@@ -335,7 +343,7 @@ select.form-control{-webkit-appearance:none;cursor:pointer}
 /* MOBILE */
 .mobile-card-list{display:none}
 .m-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px}
-.m-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.m-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:8px}
 .m-card-title{font-size:13.5px;font-weight:600;color:var(--text)}
 .m-card-id{font-size:11.5px;color:var(--muted);font-weight:500;margin-top:2px}
 .m-card-loc{font-size:12px;color:var(--muted);margin-bottom:10px}

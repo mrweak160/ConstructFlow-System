@@ -5,11 +5,13 @@ config/db.php
 # Local mail log (contains verification codes)
 storage/
 
-# Uploaded inspection photos and generated exports
+# Uploaded inspection photos, avatars, and generated exports
 uploads/photos/*
 uploads/reports/*
+uploads/avatars/*
 !uploads/photos/.gitkeep
 !uploads/reports/.gitkeep
+!uploads/avatars/.gitkeep
 
 # Composer
 vendor/

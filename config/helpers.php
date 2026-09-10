@@ -42,9 +42,10 @@ function currentUser(): ?array {
     }
 
     $stmt = getDB()->prepare(
-        'SELECT user_id, name, email, is_active, email_verified_at, account_type
+        'SELECT user_id, name, email, is_active, email_verified_at, account_type, avatar_path
          FROM Users WHERE user_id = ? LIMIT 1'
     );
+
     $stmt->execute([$sessionUser['user_id']]);
     $row = $stmt->fetch();
 
@@ -58,6 +59,7 @@ function currentUser(): ?array {
         'name'          => $row['name'],
         'email'         => $row['email'],
         'account_type'  => $row['account_type'],
+        'avatar_path'   => $row['avatar_path'],
         'active_team_id'=> $_SESSION['active_team_id'] ?? null,
     ];
 }
@@ -280,11 +282,23 @@ const CODE_MAX_RESENDS  = 5;   // per hour, enforced by caller checking last_sen
 const CODE_RESEND_COOLDOWN_SECONDS = 30;
 
 function generateSixCharCode(): string {
-    $code = '';
-    for ($i = 0; $i < CODE_LENGTH; $i++) {
-        $code .= CODE_ALPHABET[random_int(0, strlen(CODE_ALPHABET) - 1)];
+    $letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    $digits  = '23456789';
+
+    $chars = [];
+    for ($i = 0; $i < 3; $i++) {
+        $chars[] = $letters[random_int(0, strlen($letters) - 1)];
     }
-    return $code;
+    for ($i = 0; $i < 3; $i++) {
+        $chars[] = $digits[random_int(0, strlen($digits) - 1)];
+    }
+
+    for ($i = count($chars) - 1; $i > 0; $i--) {
+        $j = random_int(0, $i);
+        [$chars[$i], $chars[$j]] = [$chars[$j], $chars[$i]];
+    }
+
+    return implode('', $chars);
 }
 
 function hashCode(string $code): string {
@@ -311,34 +325,31 @@ function codeErrorMessage(string $result): string {
     };
 }
 
-// ── JOIN CODES ───────────────────────────────────────────────
-const JOIN_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-
-function generateJoinCode(): string {
-    $db = getDB();
-    for ($try = 0; $try < 10; $try++) {
-        $code = '';
-        for ($i = 0; $i < 8; $i++) {
-            $code .= JOIN_CODE_ALPHABET[random_int(0, strlen(JOIN_CODE_ALPHABET) - 1)];
-        }
-        $stmt = $db->prepare('SELECT 1 FROM Teams WHERE join_code = ? LIMIT 1');
-        $stmt->execute([$code]);
-        if (!$stmt->fetch()) {
-            return $code;
-        }
-    }
-    throw new RuntimeException('Could not generate a unique join code.');
-}
-
 // ── PASSWORD POLICY ──────────────────────────────────────────
-const PASSWORD_POLICY_TEXT = 'Password must contain at least 8 characters, 1 uppercase letter, and 1 number.';
+const PASSWORD_POLICY_TEXT = 'Password must contain at least 8 characters, 1 uppercase letter, 1 lowercase letter, and 1 number.';
 
 /** Returns an error message, or null if the password is acceptable. */
 function passwordPolicyError(string $pass): ?string {
     if (strlen($pass) < 8)                return PASSWORD_POLICY_TEXT;
     if (!preg_match('/[A-Z]/', $pass))     return PASSWORD_POLICY_TEXT;
+    if (!preg_match('/[a-z]/', $pass))     return PASSWORD_POLICY_TEXT;
     if (!preg_match('/[0-9]/', $pass))     return PASSWORD_POLICY_TEXT;
     return null;
+}
+
+/* "mark JUSTINE"  -> "Mark Justine" */
+function capitalizeWords(string $name): string {
+    $name = mb_strtolower(trim($name));
+    return preg_replace_callback(
+        "/(^|[\s\-'])(\p{L})/u",
+        fn($m) => $m[1] . mb_strtoupper($m[2]),
+        $name
+    );
+}
+
+/* no 1 letter name */
+function nameIsLongEnough(string $name): bool {
+    return mb_strlen(trim($name)) >= 2;
 }
 
 // ── ACTIVITY LOG ─────────────────────────────────────────────
@@ -405,31 +416,137 @@ const ALLOWED_IMAGE_TYPES = [
     'image/webp' => 'webp',
 ];
 
+const MAX_PHOTO_BYTES  = 10 * 1024 * 1024;
+const MAX_PHOTOS_COUNT = 10;
+
 function handleMultiplePhotoUploads(string $fieldName, string $prefix, int $ownerId): array {
+    $result = ['saved' => [], 'errors' => []];
+
     if (!isset($_FILES[$fieldName]) || !is_array($_FILES[$fieldName]['name'])) {
-        return [];
+        return $result;
     }
     $dir = __DIR__ . '/../uploads/photos/';
     if (!is_dir($dir)) mkdir($dir, 0755, true);
 
-    $saved = [];
-    $count = count($_FILES[$fieldName]['name']);
+    $total = count($_FILES[$fieldName]['name']);
 
-    for ($i = 0; $i < $count; $i++) {
-        if ($_FILES[$fieldName]['error'][$i] !== UPLOAD_ERR_OK) continue;
+    for ($i = 0; $i < $total; $i++) {
+        $originalName = $_FILES[$fieldName]['name'][$i] ?: 'file ' . ($i + 1);
+
+        if ($i >= MAX_PHOTOS_COUNT) {
+            $result['errors'][] = "$originalName: only the first " . MAX_PHOTOS_COUNT . ' photos per submission are accepted.';
+            continue;
+        }
+        if ($_FILES[$fieldName]['error'][$i] !== UPLOAD_ERR_OK) {
+            $result['errors'][] = "$originalName: upload failed.";
+            continue;
+        }
 
         $tmpName = $_FILES[$fieldName]['tmp_name'][$i];
-        if (!is_uploaded_file($tmpName)) continue;
+        if (!is_uploaded_file($tmpName)) {
+            $result['errors'][] = "$originalName: upload could not be verified.";
+            continue;
+        }
+
+        if (filesize($tmpName) > MAX_PHOTO_BYTES) {
+            $result['errors'][] = "$originalName: file is larger than 10MB.";
+            continue;
+        }
 
         $mime = mime_content_type($tmpName);
-        if (!isset(ALLOWED_IMAGE_TYPES[$mime])) continue;
+        if (!isset(ALLOWED_IMAGE_TYPES[$mime])) {
+            $result['errors'][] = "$originalName: only JPG, PNG or WEBP images are accepted.";
+            continue;
+        }
+
+        if (@getimagesize($tmpName) === false) {
+            $result['errors'][] = "$originalName: file is not a valid image.";
+            continue;
+        }
 
         $ext      = ALLOWED_IMAGE_TYPES[$mime];
         $filename = $prefix . $ownerId . '_' . time() . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
 
         if (move_uploaded_file($tmpName, $dir . $filename)) {
-            $saved[] = 'uploads/photos/' . $filename;
+            $result['saved'][] = 'uploads/photos/' . $filename;
+        } else {
+            $result['errors'][] = "$originalName: could not be saved.";
         }
     }
-    return $saved;
+
+    return $result;
+}
+
+
+// ── AVATARS ──────────────────────────────────────────────────
+const AVATAR_SIZE      = 256;
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+
+function processAvatarUpload(string $fieldName, int $userId): array {
+    if (!isset($_FILES[$fieldName]) || $_FILES[$fieldName]['error'] !== UPLOAD_ERR_OK) {
+        return ['error' => 'No photo was received.'];
+    }
+
+    $tmp = $_FILES[$fieldName]['tmp_name'];
+    if (!is_uploaded_file($tmp)) {
+        return ['error' => 'Upload could not be verified.'];
+    }
+    if (filesize($tmp) > MAX_AVATAR_BYTES) {
+        return ['error' => 'Photo must be smaller than 5MB.'];
+    }
+
+    $mime = mime_content_type($tmp);
+    if (!isset(ALLOWED_IMAGE_TYPES[$mime])) {
+        return ['error' => 'Only JPG, PNG or WEBP images are accepted.'];
+    }
+    $info = @getimagesize($tmp);
+    if ($info === false) {
+        return ['error' => 'That file is not a valid image.'];
+    }
+
+    [$w, $h] = $info;
+    if ($w < 64 || $h < 64) {
+        return ['error' => 'Photo must be at least 64×64 pixels.'];
+    }
+
+    $src = match ($mime) {
+        'image/jpeg' => @imagecreatefromjpeg($tmp),
+        'image/png'  => @imagecreatefrompng($tmp),
+        'image/webp' => @imagecreatefromwebp($tmp),
+        default      => false,
+    };
+    if (!$src) {
+        return ['error' => 'That image could not be read.'];
+    }
+
+    $side = min($w, $h);
+    $sx   = (int)(($w - $side) / 2);
+    $sy   = (int)(($h - $side) / 2);
+
+    $dst = imagecreatetruecolor(AVATAR_SIZE, AVATAR_SIZE);
+    // PNG/WEBP transparency would otherwise come out black once it is JPEG.
+    imagefilledrectangle($dst, 0, 0, AVATAR_SIZE, AVATAR_SIZE,
+        imagecolorallocate($dst, 255, 255, 255));
+    imagecopyresampled($dst, $src, 0, 0, $sx, $sy, AVATAR_SIZE, AVATAR_SIZE, $side, $side);
+    imagedestroy($src);
+
+    $dir = __DIR__ . '/../uploads/avatars/';
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+
+    $filename = 'av' . $userId . '_' . bin2hex(random_bytes(8)) . '.jpg';
+    $ok = imagejpeg($dst, $dir . $filename, 85);
+    imagedestroy($dst);
+
+    if (!$ok) {
+        return ['error' => 'The photo could not be saved.'];
+    }
+    return ['path' => 'uploads/avatars/' . $filename];
+}
+
+function deleteAvatarFile(?string $path): void {
+    if (!$path || !str_starts_with($path, 'uploads/avatars/') || str_contains($path, '..')) {
+        return;
+    }
+    $full = __DIR__ . '/../' . $path;
+    if (is_file($full)) @unlink($full);
 }

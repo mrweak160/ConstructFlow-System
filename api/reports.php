@@ -65,9 +65,8 @@ if ($method === 'POST' && $action === 'submit') {
     $db->prepare('UPDATE InspectionTasks SET status = "submitted" WHERE task_id = ? AND team_id = ?')
        ->execute([$taskId, $teamId]);
 
-    // Photo extensions come from the detected MIME type, never from
-    // the uploaded filename (see handleMultiplePhotoUploads).
-    foreach (handleMultiplePhotoUploads('photos', 'REP', $reportId) as $photoPath) {
+    $photoResult = handleMultiplePhotoUploads('photos', 'REP', $reportId);
+    foreach ($photoResult['saved'] as $photoPath) {
         $db->prepare(
             'INSERT INTO PhotoEvidence (report_id, file_path, file_name, latitude, longitude)
              VALUES (?, ?, ?, ?, ?)'
@@ -78,8 +77,9 @@ if ($method === 'POST' && $action === 'submit') {
         "{$actor['name']} submitted inspection report $code.", $teamId);
 
     json_response(true, 'Inspection report submitted successfully.', [
-        'report_id'   => $reportId,
-        'report_code' => $code,
+        'report_id'      => $reportId,
+        'report_code'    => $code,
+        'photo_warnings' => $photoResult['errors'],
     ]);
 }
 
