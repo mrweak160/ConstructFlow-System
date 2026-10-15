@@ -1,6 +1,6 @@
 <?php
 // ConstructFlow — Inspection Tasks API
-// create · list · detail · close
+// create · list · reassign · close
 //
 
 require_once __DIR__ . '/../config/helpers.php';
@@ -31,6 +31,23 @@ if ($method === 'POST' && $action === 'create') {
     if (!$assignedTo || !$title || !$location_text) {
         json_response(false, 'Assigned inspector, title, and location are required.', [], 400);
     }
+    // A due date is optional, but a date already in the past is never a real
+    // deadline. Checked here because the <input min> attribute is only a hint
+    // and can be bypassed by posting straight to the API.
+    if ($due_date !== '') {
+        $d = DateTime::createFromFormat('Y-m-d', $due_date);
+        if (!$d || $d->format('Y-m-d') !== $due_date) {
+            json_response(false, 'Enter a valid due date.', [], 400);
+        }
+        // Compared by the database. PHP's date.timezone and the database
+        // server's timezone are set independently, and while they disagree
+        // on the calendar day this guard let a past date straight through.
+        $past = getDB()->prepare('SELECT CAST(? AS DATE) < CURDATE()');
+        $past->execute([$due_date]);
+        if ((int)$past->fetchColumn() === 1) {
+            json_response(false, 'The due date must be today or a later date.', [], 400);
+        }
+    }
 
     $db = getDB();
 
@@ -48,13 +65,21 @@ if ($method === 'POST' && $action === 'create') {
         json_response(false, 'That person is not an active field inspector in this team.', [], 400);
     }
 
-    $code = generateTaskCode($teamId);
-
-    $db->prepare(
-        'INSERT INTO InspectionTasks
-         (team_id, task_code, created_by, assigned_to, title, description, location_text, due_date)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    )->execute([$teamId, $code, $actor['user_id'], $assignedTo, $title, $description, $location_text, $due_date ?: null]);
+    // nextCode() can hand two simultaneous requests the same number; the
+    // unique key turns the second away, so take the next one and retry.
+    for ($try = 1; ; $try++) {
+        $code = generateTaskCode($teamId);
+        try {
+            $db->prepare(
+                'INSERT INTO InspectionTasks
+                 (team_id, task_code, created_by, assigned_to, title, description, location_text, due_date)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+            )->execute([$teamId, $code, $actor['user_id'], $assignedTo, $title, $description, $location_text, $due_date ?: null]);
+            break;
+        } catch (PDOException $e) {
+            if ($try >= 3 || !isDuplicateCode($e)) throw $e;
+        }
+    }
     $taskId = (int)$db->lastInsertId();
 
     logActivity($actor['user_id'], 'create_task', 'task', $taskId,
@@ -106,45 +131,63 @@ if ($method === 'GET' && $action === 'list') {
     );
     $stmt->execute($params);
 
-    json_response(true, 'Tasks retrieved.', ['tasks' => $stmt->fetchAll()]);
+    json_response(true, 'Tasks retrieved.', [
+        'tasks' => markFormerMembers($stmt->fetchAll(), $teamId, [
+            'created_by'  => 'created_by_name',
+            'assigned_to' => 'assigned_to_name',
+        ]),
+    ]);
 }
 
-// ── GET ?action=detail&id=1 ──────────────────────────────────
-if ($method === 'GET' && $action === 'detail') {
-    $m      = requireTeam();
+// ── POST ?action=reassign ────────────────────────────────────
+// Body: { task_id, assigned_to }
+//
+// Moves a task nobody has inspected yet to another inspector — the person
+// it went to may have left the team, changed role or be unavailable. Once
+// a report exists the task belongs to that report and stays put.
+if ($method === 'POST' && $action === 'reassign') {
+    $m      = requireTeamRole('supervisor');
     $actor  = currentUser();
     $teamId = (int)$m['team_id'];
-    $taskId = (int)($_GET['id'] ?? 0);
-    $db     = getDB();
+    $body   = getBody();
+    $taskId = (int)($body['task_id'] ?? 0);
+    $newId  = (int)($body['assigned_to'] ?? 0);
 
-    // team_id in the WHERE clause is what stops ID enumeration across
-    // teams: a task belonging to another team simply is not found.
-    $stmt = $db->prepare(
-        'SELECT t.*,
-                u_creator.name  AS created_by_name,
-                u_assignee.name AS assigned_to_name
-         FROM InspectionTasks t
-         JOIN Users u_creator  ON t.created_by  = u_creator.user_id
-         JOIN Users u_assignee ON t.assigned_to = u_assignee.user_id
-         WHERE t.task_id = ? AND t.team_id = ?'
-    );
+    if (!$taskId || !$newId) {
+        json_response(false, 'Task and inspector are required.', [], 400);
+    }
+
+    $db   = getDB();
+    $stmt = $db->prepare('SELECT * FROM InspectionTasks WHERE task_id = ? AND team_id = ?');
     $stmt->execute([$taskId, $teamId]);
-    $task = $stmt->fetch();
-
-    if (!$task) {
+    $t = $stmt->fetch();
+    if (!$t) {
         json_response(false, 'Task not found.', [], 404);
     }
-    if ($m['role'] === 'field_inspector' && $task['assigned_to'] != $actor['user_id']) {
-        json_response(false, 'Access denied.', [], 403);
+    if ($t['status'] !== 'assigned') {
+        json_response(false, 'This task has already been inspected, so it stays with the inspector who filed the report.', [], 409);
+    }
+    if ((int)$t['assigned_to'] === $newId) {
+        json_response(false, 'That inspector already has this task.', [], 400);
+    }
+    $chk = $db->prepare(
+        'SELECT u.name FROM TeamMembers tm JOIN Users u ON tm.user_id = u.user_id
+          WHERE tm.team_id = ? AND tm.user_id = ?
+            AND tm.role = "field_inspector" AND tm.status = "active" AND u.is_active = 1'
+    );
+    $chk->execute([$teamId, $newId]);
+    $name = $chk->fetchColumn();
+    if (!$name) {
+        json_response(false, 'That person is not an active field inspector in this team.', [], 400);
     }
 
-    $report = $db->prepare('SELECT * FROM InspectionReports WHERE task_id = ? AND team_id = ?');
-    $report->execute([$taskId, $teamId]);
+    $db->prepare('UPDATE InspectionTasks SET assigned_to = ? WHERE task_id = ? AND team_id = ?')
+       ->execute([$newId, $taskId, $teamId]);
 
-    json_response(true, 'Task detail retrieved.', [
-        'task'   => $task,
-        'report' => $report->fetch() ?: null,
-    ]);
+    logActivity($actor['user_id'], 'reassign_task', 'task', $taskId,
+        "{$actor['name']} reassigned task {$t['task_code']} to $name.", $teamId);
+
+    json_response(true, "Task {$t['task_code']} reassigned to $name.");
 }
 
 // ── POST ?action=close ───────────────────────────────────────

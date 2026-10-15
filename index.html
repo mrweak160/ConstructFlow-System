@@ -6,134 +6,333 @@
 <meta name="theme-color" content="#f59e0b"/>
 <link rel="manifest" href="manifest.json"/>
 <title>ConstructFlow — Severity-Based Inspection &amp; Work Order Coordination</title>
-<meta name="description" content="ConstructFlow rates every site inspection by severity, then turns it into a work order with a named owner and a deadline. Built for small construction teams."/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<meta name="description" content="ConstructFlow assigns a severity rating to every site inspection, then converts it into a work order with a named owner and a firm deadline. Built for small construction teams."/>
 <link rel="stylesheet" href="style.css"/>
 <link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
 <link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
 <link rel="apple-touch-icon" sizes="180x180" href="logo/apple-touch-icon.png"/>
+<link rel="preload" as="image" href="img/hero-inspector.webp"/>
 
 <style>
 /* ═══════════════════════════════════════════════════════
    LANDING PAGE
+   Flat surfaces throughout. Every colour here is a single
+   solid value: no gradient fills, no inset top highlights,
+   no blurred glows. Depth comes from three things only —
+   a solid border, a flat drop shadow, and the photographs.
    ═══════════════════════════════════════════════════════ */
-html,body{height:auto;min-height:100%}
-body.landing{overflow-y:auto;overflow-x:hidden}
-html{-webkit-text-size-adjust:100%}
+.landing{
+  --lp-bg:#0d1016;
+  --lp-surf:#161b27;        /* every card, one flat value */
+  --lp-surf-2:#1b2130;      /* one step lighter, for bars and headers */
+  --lp-line:#272f44;
+  --lp-line-lit:#39435f;
+  --lp-dim:#97a4bd;
+  --lp-dim-2:#73819c;
+  --lp-acc:#f59e0b;
+  --lp-acc-dk:#d97706;
+  --lp-ink:#1b1302;         /* text that sits on amber */
+  --lp-sh:0 14px 30px -16px rgba(0,0,0,.8);
+}
 
-.lp-wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+/* style.css pins html and body to the viewport height for the
+   dashboard shell. A scrolling document needs that released. */
+html{height:auto;background:var(--lp-bg);-webkit-text-size-adjust:100%}
+body.landing{
+  height:auto;min-height:100%;
+  background:var(--lp-bg);
+  overflow-x:hidden;color:#eef2f8;
+}
+
+.lp-wrap{max-width:1140px;margin:0 auto;padding:0 24px}
 
 /* ─── NAV ─── */
 .lp-nav{
-  position:sticky;top:0;z-index:30;
-  background:rgba(15,17,23,.92);backdrop-filter:blur(10px);
-  border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:40;
+  background:var(--lp-bg);
+  border-bottom:1px solid var(--lp-line);
 }
-.lp-nav .lp-wrap{display:flex;align-items:center;gap:28px;min-height:64px}
+.lp-nav .lp-wrap{display:flex;align-items:center;gap:26px;min-height:66px}
 .lp-brand{display:flex;align-items:center;gap:10px;margin-right:auto;text-decoration:none}
-.lp-brand .logo-badge{width:32px;height:32px}
-.lp-brand span{font-weight:700;font-size:15px;color:var(--text);letter-spacing:-.2px}
-.lp-links{display:flex;align-items:center;gap:24px}
-.lp-links a.lp-link{font-size:13px;font-weight:500;color:var(--muted);text-decoration:none;transition:color .15s}
-.lp-links a.lp-link:hover{color:var(--text)}
-.lp-nav .btn{text-decoration:none}
+.lp-brand .logo-badge{width:32px;height:32px;border-radius:8px}
+.lp-brand span{font-weight:700;font-size:15px;color:#eef2f8;letter-spacing:-.25px}
+.lp-links{display:flex;align-items:center;gap:4px}
+.lp-links a.lp-link{
+  font-size:13px;font-weight:550;color:var(--lp-dim);text-decoration:none;
+  padding:8px 13px;border-radius:6px;transition:color .15s,background .15s;
+}
+.lp-links a.lp-link:hover{color:#eef2f8;background:var(--lp-surf-2)}
+
+/* ─── BUTTONS ─── */
+/* Plain flat rectangles. No arrow block, no inner highlight — the fill
+   and the border are the whole treatment. */
+.lp-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:13px 22px;border-radius:7px;
+  font-size:14px;font-weight:650;text-decoration:none;white-space:nowrap;
+  font-family:'Inter',sans-serif;cursor:pointer;
+  border:1px solid transparent;
+  transition:background .15s,border-color .15s;
+}
+.lp-btn-accent{background:var(--lp-acc);color:var(--lp-ink);border-color:var(--lp-acc)}
+.lp-btn-accent:hover{background:var(--lp-acc-dk);border-color:var(--lp-acc-dk)}
+.lp-btn-ghost{background:rgba(255,255,255,.06);color:#eef2f8;border-color:var(--lp-line-lit)}
+.lp-btn-ghost:hover{background:rgba(255,255,255,.1);border-color:#4a5572}
+.lp-btn-sm{padding:9px 16px;font-size:13px}
 
 /* ─── HERO ─── */
-.lp-hero{padding:76px 0 84px}
-.lp-hero .lp-wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
-.lp-hero h1{
-  font-size:clamp(30px,4.4vw,46px);font-weight:800;color:var(--text);
-  line-height:1.1;letter-spacing:-1.2px;
+/* One rounded panel carrying the site photograph, with the copy on the
+   left and the severity ladder on the right. The scrim over the photo is
+   a single flat colour, not a fade. */
+.lp-hero{padding:28px 0 0}
+.lp-stage{
+  position:relative;border-radius:16px;overflow:hidden;
+  border:1px solid var(--lp-line);
+  background:#0a0d12 url("img/hero-inspector.webp") no-repeat center;
+  /* Covers the whole panel so there is no seam where the photo stops.
+     The supplied file is 612x408, so this scales it about 1.8x; the flat
+     scrim below carries most of that. Drop a wider copy in at the same
+     path and this needs no change. */
+  background-size:cover;
 }
-.lp-hero .lp-lede{
-  font-size:15.5px;color:var(--muted);line-height:1.7;margin-top:18px;max-width:46ch;
+.lp-stage::before{
+  content:'';position:absolute;inset:0;
+  background:rgba(9,12,17,.74);
 }
-.lp-cta{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px}
-.lp-cta .btn{padding:12px 22px;font-size:14px;text-decoration:none}
-.lp-note{
-  margin-top:26px;padding:12px 16px;border-left:3px solid var(--blue);
-  background:rgba(59,130,246,.07);border-radius:0 8px 8px 0;
-  font-size:12.5px;color:var(--muted);line-height:1.65;max-width:46ch;
+.lp-stage-in{
+  position:relative;
+  display:grid;grid-template-columns:minmax(0,1.06fr) minmax(0,.94fr);
+  gap:46px;align-items:center;
+  padding:70px 46px 74px;
 }
+
+.lp-badge{
+  display:inline-flex;align-items:center;gap:9px;
+  padding:7px 14px 7px 11px;border-radius:5px;
+  background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.34);
+  color:var(--lp-acc);
+  font-size:10.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;
+}
+.lp-badge i{width:6px;height:6px;border-radius:50%;background:var(--lp-acc)}
+
+.lp-stage h1{
+  font-size:clamp(31px,4.3vw,50px);font-weight:800;color:#fff;
+  line-height:1.07;letter-spacing:-1.6px;margin:22px 0 0;
+}
+.lp-accent{color:var(--lp-acc)}
+.lp-lede{
+  font-size:15.5px;color:#c4cee0;line-height:1.68;
+  margin:20px 0 0;max-width:46ch;
+}
+.lp-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
 
 /* ─── SEVERITY LADDER ─── */
-.lp-ladder{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:22px 22px 20px}
-.lp-ladder-title{font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:18px}
-.lp-rung{display:grid;grid-template-columns:78px 1fr;align-items:center;gap:14px;margin-bottom:14px}
-.lp-rung:last-of-type{margin-bottom:0}
-.lp-rung b{font-size:11.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase}
-.lp-track{height:14px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden}
-.lp-fill{height:100%;border-radius:3px;transform-origin:left;animation:lp-grow .85s cubic-bezier(.2,.7,.3,1) both}
-.lp-r1 b{color:#f87171} .lp-r1 .lp-fill{background:var(--red);width:100%;animation-delay:.05s}
-.lp-r2 b{color:#fb923c} .lp-r2 .lp-fill{background:var(--orange);width:72%;animation-delay:.16s}
-.lp-r3 b{color:#facc15} .lp-r3 .lp-fill{background:var(--yellow);width:45%;animation-delay:.27s}
-.lp-r4 b{color:#4ade80} .lp-r4 .lp-fill{background:var(--green);width:22%;animation-delay:.38s}
-@keyframes lp-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-.lp-ladder-note{
-  margin-top:20px;padding-top:16px;border-top:1px solid var(--border);
-  font-size:12px;color:var(--muted);line-height:1.6;
+/* The one idea the whole product rests on, stated as four bars: the
+   queue is ordered by how dangerous the finding is, not by when it
+   was filed. */
+.lp-ladder{
+  /* --lp-surf at 88%, so the photograph reads faintly through the card
+     instead of the card sitting on it as a solid block. 88% and not less:
+     measured against the brightest part of the scrimmed photo behind it,
+     the dimmest text here still holds 6.5:1. */
+  background:rgba(22,27,39,.88);
+  border:1px solid var(--lp-line-lit);
+  border-radius:12px;
+  padding:22px 22px 20px;
+  box-shadow:var(--lp-sh);
 }
-@media(prefers-reduced-motion:reduce){.lp-fill{animation:none}}
+.lp-ladder-title{font-size:13px;font-weight:650;color:#eef2f8;margin-bottom:20px}
+.lp-rung{display:grid;grid-template-columns:84px 1fr;align-items:center;gap:14px;margin-bottom:14px}
+.lp-rung:last-of-type{margin-bottom:0}
+.lp-rung b{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
+.lp-track{height:14px;background:var(--lp-line);border-radius:3px;overflow:hidden}
+.lp-fill{height:100%;border-radius:3px}
+.lp-r1 b{color:#f87171} .lp-r1 .lp-fill{background:#ef4444;width:100%}
+.lp-r2 b{color:#fb923c} .lp-r2 .lp-fill{background:#f97316;width:72%}
+.lp-r3 b{color:#facc15} .lp-r3 .lp-fill{background:#eab308;width:45%}
+.lp-r4 b{color:#4ade80} .lp-r4 .lp-fill{background:#22c55e;width:22%}
+.lp-ladder-note{
+  margin-top:20px;padding-top:16px;border-top:1px solid var(--lp-line);
+  font-size:12px;color:var(--lp-dim);line-height:1.65;
+}
+
+/* ─── INVITE NOTE ─── */
+.lp-note{
+  display:flex;gap:13px;align-items:flex-start;
+  max-width:640px;margin:34px auto 0;padding:14px 18px;
+  border-radius:8px;
+  background:rgba(59,130,246,.08);
+  border:1px solid rgba(59,130,246,.26);
+  font-size:12.5px;color:var(--lp-dim);line-height:1.65;
+}
+.lp-note svg{width:16px;height:16px;flex-shrink:0;margin-top:1px;color:#60a5fa}
 
 /* ─── SECTIONS ─── */
-.lp-band{padding:72px 0;border-top:1px solid var(--border)}
-.lp-band-alt{background:#12151d}
-.lp-band h2{font-size:clamp(21px,2.8vw,27px);font-weight:700;color:var(--text);letter-spacing:-.6px;line-height:1.25}
-.lp-two{display:grid;grid-template-columns:minmax(0,290px) minmax(0,1fr);gap:52px}
-
-/* ─── ROLES ───*/
-.lp-role{
-  display:grid;grid-template-columns:170px 1fr;gap:22px;
-  padding:18px 0 18px 18px;border-top:1px solid var(--border);border-left:3px solid transparent;
+.lp-band{padding:92px 0}
+/* The nav bar sits over the page, so an in-page jump has to stop short
+   of it or the heading it lands on is hidden underneath. */
+#roles,#about,#contact{scroll-margin-top:84px}
+.lp-head-block{max-width:620px;margin:0 0 44px}
+.lp-eyebrow{
+  font-size:10.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;
+  color:var(--lp-acc);margin-bottom:14px;
 }
-.lp-role:last-child{border-bottom:1px solid var(--border)}
-.lp-role h3{font-size:13.5px;font-weight:700;color:var(--text)}
-.lp-role p{font-size:13px;color:var(--muted);line-height:1.65;max-width:60ch}
-.lp-role-admin{border-left-color:var(--red)}
-.lp-role-sup{border-left-color:var(--blue)}
-.lp-role-insp{border-left-color:var(--green)}
-.lp-role-work{border-left-color:var(--amber)}
+.lp-band h2{
+  font-size:clamp(24px,3.3vw,36px);font-weight:800;color:#f6f9ff;
+  letter-spacing:-1px;line-height:1.16;
+}
+.lp-head-block p{font-size:15px;color:var(--lp-dim);line-height:1.7;margin-top:16px}
 
-/* ─── ABOUT / CONTACT ─── */
-.lp-prose p{font-size:14.5px;color:var(--label);line-height:1.8;margin-bottom:16px;max-width:66ch}
+/* ─── ROLE CARDS ─── */
+.lp-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(248px,1fr));gap:16px}
+.lp-card{
+  position:relative;
+  padding:24px 23px;border-radius:10px;
+  background:var(--lp-surf);
+  border:1px solid var(--lp-line);
+  transition:border-color .18s,background .18s;
+}
+.lp-card:hover{background:#1a2030;border-color:var(--lp-line-lit)}
+.lp-num{
+  position:absolute;top:22px;right:22px;
+  font-size:11px;font-weight:700;color:var(--lp-dim-2);letter-spacing:.5px;
+}
+/* The role name now carries the colour, so the card itself stays neutral. */
+.lp-card h3{font-size:14.5px;font-weight:700;color:var(--c);letter-spacing:-.2px}
+.lp-card p{font-size:13px;color:var(--lp-dim);line-height:1.68;margin-top:9px}
+/* The lighter tint of each role colour, not the saturated one the badges
+   use. At 14.5px the saturated red and blue measured 4.57:1 and 4.62:1 on
+   this card — over the line but with nothing to spare. These are 6.2:1
+   and 6.8:1. Written out rather than mixed at runtime: color-mix() is not
+   in every browser this has to open in. */
+.lp-c-admin{--c:#f87171}
+.lp-c-sup  {--c:#60a5fa}
+.lp-c-insp {--c:#4ade80}
+.lp-c-work {--c:#fbbf24}
+
+/* ─── ABOUT / FLOW ─── */
+/* This band carries the second site photograph. Full-bleed rather than a
+   rounded panel: the hero is already a panel, and repeating that shape
+   here would read as two of the same card stacked. The scrim is heavier
+   than the hero's because this section is a wall of body copy sitting
+   over a bright, daylight photo — and it is one flat colour, not a fade. */
+#about{
+  position:relative;
+  background:#0a0d12 url("img/about-site.webp") no-repeat center;
+  background-size:cover;
+  border-top:1px solid var(--lp-line);
+  border-bottom:1px solid var(--lp-line);
+}
+/* .80 measured, not guessed: worst-case contrast behind the body copy is
+   6.9:1 and behind the heading 10.4:1, both past WCAG AA, while the site
+   still reads as a photograph rather than a dark smudge. */
+#about::before{content:'';position:absolute;inset:0;background:rgba(9,12,17,.80)}
+#about > *{position:relative}
+.lp-flow-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,420px);gap:56px;align-items:start}
+.lp-prose p{font-size:15px;color:#c3cde0;line-height:1.82;margin-bottom:17px;max-width:62ch}
 .lp-prose p:last-child{margin-bottom:0}
-.lp-contact{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:28px}
-.lp-contact h3{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.6px;text-transform:uppercase;margin-bottom:7px}
-.lp-contact a,.lp-contact p{font-size:14px;color:var(--text);text-decoration:none;line-height:1.65}
-.lp-contact a:hover{color:var(--amber)}
+.lp-prose em{color:#eef2f8;font-style:normal;font-weight:650}
+.lp-flow{
+  padding:26px 24px;border-radius:10px;
+  /* Same 88% as the severity ladder, for the same reason. */
+  background:rgba(22,27,39,.88);
+  border:1px solid var(--lp-line);
+}
+/* --lp-dim rather than the dimmer tier. Over the About photograph this
+   card's secondary text measured 4.38:1 even at full opacity — already
+   short of AA before any transparency was added. At --lp-dim it is 6.6:1. */
+.lp-flow-t{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--lp-dim);margin-bottom:20px}
+.lp-step{display:grid;grid-template-columns:28px 1fr;gap:14px;position:relative;padding-bottom:20px}
+.lp-step:last-child{padding-bottom:0}
+/* The connector is drawn on the step itself, not between steps, so it
+   cannot drift out of line as the text wraps. */
+.lp-step:not(:last-child)::before{
+  content:'';position:absolute;left:13.5px;top:32px;bottom:2px;width:1px;background:var(--lp-line-lit);
+}
+.lp-step i{
+  width:28px;height:28px;border-radius:6px;
+  display:grid;place-items:center;font-style:normal;
+  font-size:10.5px;font-weight:700;color:var(--lp-dim);
+  background:var(--lp-surf-2);border:1px solid var(--lp-line-lit);
+}
+.lp-step.lp-on i{background:var(--lp-acc);color:var(--lp-ink);border-color:var(--lp-acc)}
+.lp-step b{display:block;font-size:13px;font-weight:650;color:#eaf0fa}
+.lp-step span{display:block;font-size:12px;color:var(--lp-dim);line-height:1.6;margin-top:4px}
+
+/* ─── CONTACT ─── */
+/* Heading in its own column, details beside it — the layout this section
+   had originally. No cards and no icons: these are two short facts, and
+   boxing each one gave them more furniture than they are worth. */
+.lp-two{display:grid;grid-template-columns:minmax(0,290px) minmax(0,1fr);gap:52px;align-items:start}
+.lp-contact{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:34px}
+/* The two additions over the old version: a hairline that gives each
+   detail a top edge to sit against, and the label in the accent rather
+   than another grey, so the section is not entirely monotone. */
+.lp-cinfo{border-top:1px solid var(--lp-line);padding-top:15px}
+.lp-cinfo h3{
+  font-size:10.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--lp-acc);margin-bottom:9px;
+}
+.lp-cinfo p{font-size:15.5px;color:#eef2f8;font-weight:550;line-height:1.5;word-break:break-word}
 
 /* ─── FOOTER ─── */
-.lp-foot{border-top:1px solid var(--border);padding:26px 0}
+/* No top margin: the contact band above already ends with its own 92px of
+   padding, and stacking a second gap on top of that left a visibly empty
+   strip once the closing block was removed. */
+.lp-foot{border-top:1px solid var(--lp-line);padding:28px 0 36px}
 .lp-foot .lp-wrap{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between}
-.lp-foot p{font-size:12px;color:var(--muted)}
-.lp-foot nav{display:flex;gap:20px}
-.lp-foot nav a{font-size:12px;color:var(--muted);text-decoration:none}
-.lp-foot nav a:hover{color:var(--text)}
+.lp-foot p{font-size:12px;color:var(--lp-dim-2)}
+.lp-foot nav{display:flex;flex-wrap:wrap;gap:22px}
+.lp-foot nav a{font-size:12px;color:var(--lp-dim-2);text-decoration:none;transition:color .15s}
+.lp-foot nav a:hover{color:#eef2f8}
 
 /* ─── RESPONSIVE ─── */
-@media(max-width:880px){
-  .lp-hero .lp-wrap{grid-template-columns:1fr;gap:44px}
+@media(max-width:980px){
+  /* Below this the subject is no longer clear of the copy, so the scrim
+     is raised to keep the type legible against her, and the ladder drops
+     under the text instead of beside it. */
+  .lp-stage::before{background:rgba(9,12,17,.82)}
+  .lp-stage-in{grid-template-columns:1fr;gap:38px;padding:62px 32px 66px}
+  .lp-flow-grid{grid-template-columns:1fr;gap:34px}
   .lp-two{grid-template-columns:1fr;gap:26px}
-  .lp-role{grid-template-columns:1fr;gap:6px}
+  .lp-band{padding:70px 0}
+}
+@media(max-width:720px){
+  .lp-links{display:none}
+  /* The About band is far taller than it is wide on a phone, so a cover
+     crop would show a 141px slice of the 612px source blown up 2.8x —
+     an unreadable blur. The photo becomes a defined strip across the top
+     of the section instead: shown whole, slightly DOWNscaled, with the
+     heading over it and the body copy on flat colour below. The scrim
+     rides along as a flat inset fill on the same element. */
+  #about{background-image:none}
+  #about::before{
+    bottom:auto;height:218px;
+    background:#0a0d12 url("img/about-site.webp") no-repeat center;
+    background-size:cover;
+    /* .74, not lighter: the first lines of body copy run across this
+       strip, and over the photo's pale concrete they measured 3.1:1 at
+       .58 — below AA. At .74 they are 5.6:1 and the heading 8.4:1. */
+    box-shadow:inset 0 0 0 9999px rgba(9,12,17,.74);
+    border-bottom:1px solid var(--lp-line);
+  }
 }
 @media(max-width:640px){
-  .lp-wrap{padding:0 18px}
-  .lp-hero{padding:40px 0 52px}
-  .lp-band{padding:50px 0}
-  .lp-nav .lp-wrap{flex-wrap:wrap;gap:10px;padding-top:11px}
-  .lp-links{order:3;width:100%;gap:0;justify-content:space-between;border-top:1px solid var(--border)}
-  .lp-links .lp-link{padding:11px 2px;font-size:12.5px}
-  .lp-cta .btn{width:100%;justify-content:center;padding:13px 20px}
+  .lp-wrap{padding:0 16px}
+  .lp-hero{padding:16px 0 0}
+  .lp-stage-in{padding:46px 20px 52px;gap:30px}
+  .lp-stage h1{letter-spacing:-1.1px}
+  .lp-lede{font-size:14.5px}
+  .lp-cta{flex-direction:column;align-items:stretch}
   .lp-ladder{padding:18px 16px 16px}
-  .lp-rung{grid-template-columns:62px 1fr;gap:11px}
+  .lp-rung{grid-template-columns:70px 1fr;gap:11px}
   .lp-rung b{font-size:10.5px}
-  .lp-role{padding-left:14px}
-  .lp-foot .lp-wrap{flex-direction:column;align-items:flex-start;gap:12px}
+  .lp-band{padding:56px 0}
+  .lp-contact{gap:24px}
+  .lp-foot .lp-wrap{flex-direction:column;align-items:flex-start;gap:14px}
+  .lp-foot nav{gap:18px}
 }
-
-@media(max-width:380px){
-  .lp-wrap{padding:0 15px}
-  .lp-links .lp-link{font-size:11.5px}
+@media(max-width:400px){
   .lp-brand span{font-size:14px}
 }
 </style>
@@ -144,7 +343,7 @@ html{-webkit-text-size-adjust:100%}
 <header class="lp-nav">
   <div class="lp-wrap">
     <a class="lp-brand" href="#top">
-      <div class="logo-badge"><img src="logo/logo.svg" alt="ConstructFlow"/></div>
+      <div class="logo-badge"><img src="logo/logo.png" alt="ConstructFlow"/></div>
       <span>ConstructFlow</span>
     </a>
     <nav class="lp-links">
@@ -152,7 +351,7 @@ html{-webkit-text-size-adjust:100%}
       <a class="lp-link" href="#about">About us</a>
       <a class="lp-link" href="#contact">Contact us</a>
     </nav>
-    <a class="btn btn-dark" id="lp-auth" href="login.html">Log in</a>
+    <a class="lp-btn lp-btn-ghost lp-btn-sm" id="lp-auth" href="login.html">Log in</a>
   </div>
 </header>
 
@@ -161,60 +360,83 @@ html{-webkit-text-size-adjust:100%}
   <!-- ═══ HERO ═══ -->
   <section class="lp-hero">
     <div class="lp-wrap">
-      <div>
-        <h1>Know which problem to fix first.</h1>
-        <p class="lp-lede">
-          ConstructFlow rates every site inspection by severity, then turns it into
-          a work order with a named owner and a deadline. Nothing urgent sits at the
-          bottom of a list.
-        </p>
+      <div class="lp-stage">
+        <div class="lp-stage-in">
 
-        <div class="lp-cta">
-          <a class="btn btn-amber" href="create-team.html">Create your team</a>
-          <a class="btn btn-dark" href="#roles">See how it works</a>
+          <div>
+            <span class="lp-badge"><i></i>Severity-based site coordination</span>
+
+            <h1>Know which problem to <span class="lp-accent">fix first</span>.</h1>
+
+            <p class="lp-lede">
+              ConstructFlow assigns a severity rating to every site inspection, then
+              converts it into a work order with a named owner and a firm deadline.
+              Urgent findings are never left at the bottom of a list.
+            </p>
+
+            <div class="lp-cta">
+              <a class="lp-btn lp-btn-accent" href="create-team.html">Create your team</a>
+              <a class="lp-btn lp-btn-ghost" href="#roles">See how it works</a>
+            </div>
+          </div>
+
+          <div class="lp-ladder" aria-label="The four severity levels">
+            <div class="lp-ladder-title">Severity determines priority</div>
+
+            <div class="lp-rung lp-r1"><b>Critical</b><div class="lp-track"><div class="lp-fill"></div></div></div>
+            <div class="lp-rung lp-r2"><b>High</b><div class="lp-track"><div class="lp-fill"></div></div></div>
+            <div class="lp-rung lp-r3"><b>Moderate</b><div class="lp-track"><div class="lp-fill"></div></div></div>
+            <div class="lp-rung lp-r4"><b>Low</b><div class="lp-track"><div class="lp-fill"></div></div></div>
+
+            <p class="lp-ladder-note">
+              A cracked load-bearing column and a scuffed handrail are not equivalent
+              work. ConstructFlow distinguishes between them before anyone is sent out.
+            </p>
+          </div>
+
         </div>
-        <p class="lp-note">
-          Joining a team that already exists? Open the invite link your
-          administrator emailed you — there is nothing to sign up for here.
-        </p>
       </div>
 
-      <div class="lp-ladder" aria-label="The four severity levels">
-        <div class="lp-ladder-title">Severity decides the queue</div>
-
-        <div class="lp-rung lp-r1"><b>Critical</b><div class="lp-track"><div class="lp-fill"></div></div></div>
-        <div class="lp-rung lp-r2"><b>High</b><div class="lp-track"><div class="lp-fill"></div></div></div>
-        <div class="lp-rung lp-r3"><b>Moderate</b><div class="lp-track"><div class="lp-fill"></div></div></div>
-        <div class="lp-rung lp-r4"><b>Low</b><div class="lp-track"><div class="lp-fill"></div></div></div>
-
-        <p class="lp-ladder-note">
-          A cracked load-bearing column and a scuffed handrail are not the same job.
-          ConstructFlow separates them before anyone walks the site.
-        </p>
-      </div>
+      <p class="lp-note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span>Already part of an existing team? Please use the invitation link your
+        administrator sent you.</span>
+      </p>
     </div>
   </section>
 
   <!-- ═══ ROLES ═══ -->
-  <section class="lp-band lp-band-alt" id="roles">
-    <div class="lp-wrap lp-two">
-      <div><h2>Four roles, one site record</h2></div>
-      <div>
-        <div class="lp-role lp-role-admin">
+  <section class="lp-band" id="roles">
+    <div class="lp-wrap">
+      <div class="lp-head-block">
+        <div class="lp-eyebrow">How it works</div>
+        <h2>Four roles, one site record</h2>
+        <p>Each role works from the same record, seeing what their part of the job requires.</p>
+      </div>
+
+      <div class="lp-cards">
+        <div class="lp-card lp-c-admin">
+          <span class="lp-num">01</span>
           <h3>Administrator</h3>
-          <p>The business owner. Creates the team, invites everyone by email, and decides what each person does. Roles can be changed later as the crew shifts.</p>
+          <p>The business owner. Creates the team, invites members by email, and assigns each person their role. Roles may be reassigned at any time as the crew changes.</p>
         </div>
-        <div class="lp-role lp-role-sup">
+
+        <div class="lp-card lp-c-sup">
+          <span class="lp-num">02</span>
           <h3>Supervisor</h3>
-          <p>Runs the work. Assigns inspection tasks, turns findings into work orders, and tracks what is open, on hold, or done.</p>
+          <p>Directs the work. Assigns inspection tasks, converts findings into work orders, and monitors what remains open, on hold, or completed.</p>
         </div>
-        <div class="lp-role lp-role-insp">
+
+        <div class="lp-card lp-c-insp">
+          <span class="lp-num">03</span>
           <h3>Field Inspector</h3>
-          <p>Walks the site against an assigned task and files what they find, with geotagged photos and a severity rating.</p>
+          <p>Inspects the site against an assigned task and files each finding with geotagged photos and a severity rating.</p>
         </div>
-        <div class="lp-role lp-role-work">
+
+        <div class="lp-card lp-c-work">
+          <span class="lp-num">04</span>
           <h3>Field Worker</h3>
-          <p>Sees only the work assigned to them, in severity order, and posts progress and completion photos from a phone.</p>
+          <p>Receives only the work assigned to them, ordered by severity, and submits progress and completion photos from a phone.</p>
         </div>
       </div>
     </div>
@@ -222,46 +444,56 @@ html{-webkit-text-size-adjust:100%}
 
   <!-- ═══ ABOUT ═══ -->
   <section class="lp-band" id="about">
-    <div class="lp-wrap lp-two">
-      <div><h2>About us</h2></div>
-      <div class="lp-prose">
-        <p>
-          Small construction teams rarely lose track of a problem because nobody noticed it.
-          They lose track because the notice lived in a group chat, a camera roll, and
-          somebody's memory of what the foreman said on Tuesday.
-        </p>
-        <p>
-          ConstructFlow is built around one idea: a finding is not useful until it has a
-          severity, an owner, and a deadline attached to it. Every inspection filed in the
-          system becomes a work order somebody is accountable for, and the most dangerous
-          items rise to the top on their own.
-        </p>
-        <p>
-          It runs in a browser and installs to a phone, so a worker on scaffolding and an
-          owner at a desk are reading the same record.
-        </p>
+    <div class="lp-wrap">
+      <div class="lp-flow-grid">
+        <div>
+          <div class="lp-eyebrow">About us</div>
+          <h2 style="margin-bottom:22px">A finding is not actionable until someone owns it</h2>
+          <div class="lp-prose">
+            <p>
+              Small construction teams rarely lose track of a hazard because no one noticed
+              it. They lose track because the record of it was scattered across a group chat,
+              a camera roll, and someone's recollection of what the foreman said on Tuesday.
+            </p>
+            <p>
+              ConstructFlow is built on a single principle: a finding is not actionable until
+              it carries a <em>severity</em>, an <em>owner</em>, and a <em>deadline</em>. Every
+              inspection filed in the system becomes a work order for which someone is
+              accountable, and the most hazardous items rise to the top on their own.
+            </p>
+            <p>
+              The system runs in any browser and installs to a phone, so a worker on
+              scaffolding and an owner at a desk are working from the same record.
+            </p>
+          </div>
+        </div>
+
+        <div class="lp-flow">
+          <div class="lp-flow-t">The workflow of a single finding</div>
+          <div class="lp-step"><i>1</i><div><b>Task assigned</b><span>A supervisor directs an inspector to a specified area of the site.</span></div></div>
+          <div class="lp-step"><i>2</i><div><b>Inspection filed</b><span>Photos, location data, and a record of what was observed on site.</span></div></div>
+          <div class="lp-step lp-on"><i>3</i><div><b>Severity rated</b><span>Critical, high, moderate, or low. That rating determines its position in the queue.</span></div></div>
+          <div class="lp-step"><i>4</i><div><b>Work order issued</b><span>A named crew, a designated lead, and a deadline. No work is left unassigned.</span></div></div>
+          <div class="lp-step"><i>5</i><div><b>Verified, then closed</b><span>The supervisor reviews the work and the inspector verifies it on site. Both are required before the order can close.</span></div></div>
+        </div>
       </div>
     </div>
   </section>
 
   <!-- ═══ CONTACT ═══ -->
-  <section class="lp-band lp-band-alt" id="contact">
+  <!-- Plain text, not links. These are for reading off the page, not for
+       launching a mail client, so there is nothing here to click. -->
+  <section class="lp-band" id="contact">
     <div class="lp-wrap lp-two">
       <div><h2>Contact us</h2></div>
-      <div>
-        <div class="lp-contact">
-          <div>
-            <h3>Email</h3>
-            <a href="mailto:hello@constructflow.com">constructflow7@gmail.com</a>
-          </div>
-          <div>
-            <h3>Phone</h3>
-            <a href="tel:+639703872840">+63 970 387 2840</a>
-          </div>
-          <div>
-            <h3>Office</h3>
-            <p>Tarlac City, Tarlac</p>
-          </div>
+      <div class="lp-contact">
+        <div class="lp-cinfo">
+          <h3>Email</h3>
+          <p>constructflow7@gmail.com</p>
+        </div>
+        <div class="lp-cinfo">
+          <h3>Phone</h3>
+          <p>+63 970 387 2840</p>
         </div>
       </div>
     </div>
@@ -271,11 +503,12 @@ html{-webkit-text-size-adjust:100%}
 
 <footer class="lp-foot">
   <div class="lp-wrap">
-    <p>ConstructFlow
-    </p>
+    <p>ConstructFlow</p>
     <nav>
       <a href="#about">About us</a>
       <a href="#contact">Contact us</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
       <a href="login.html">Log in</a>
     </nav>
   </div>
@@ -291,7 +524,7 @@ html{-webkit-text-size-adjust:100%}
       const link = document.getElementById('lp-auth');
       link.href        = 'team.html';
       link.textContent = 'Go to dashboard';
-      link.className   = 'btn btn-amber';
+      link.className   = 'lp-btn lp-btn-accent lp-btn-sm';
     }
   }catch(e){ /* signed out, or offline */ }
 })();

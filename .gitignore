@@ -11,6 +11,7 @@ uploads/reports/*
 uploads/avatars/*
 !uploads/photos/.gitkeep
 !uploads/reports/.gitkeep
+!uploads/reports/.htaccess
 !uploads/avatars/.gitkeep
 
 # Composer
@@ -24,3 +25,8 @@ mailtest.php
 .idea/
 .DS_Store
 Thumbs.db
+
+# Database dumps and backups — real user emails and password hashes
+db/backup_*.sql
+db/*_backup.sql
+db/dump*.sql

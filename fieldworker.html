@@ -6,7 +6,6 @@
 <meta name="theme-color" content="#f59e0b"/>
 <link rel="manifest" href="manifest.json"/>
 <title>ConstructFlow — Field Worker Portal</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="style.css"/>
 <link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
 <link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
@@ -19,7 +18,7 @@
   <div class="dash">
     <div class="sidebar-overlay" onclick="closeSidebar()"></div>
     <aside class="sidebar">
-      <div class="sidebar-logo"><div class="logo-badge"><img src="logo/logo.svg" alt="ConstructFlow"/></div><div class="logo-name">CONSTRUCTFLOW</div></div>
+      <div class="sidebar-logo"><div class="logo-badge"><img src="logo/logo.png" alt="ConstructFlow"/></div><div class="logo-name">CONSTRUCTFLOW</div></div>
       <div class="sidebar-user">
         <div class="avatar av-green" id="fw-av">&mdash;</div>
         <div class="user-info"><div class="uname" id="fw-uname">&mdash;</div><div class="urole">Field Worker</div></div>
@@ -75,14 +74,20 @@
       <div class="content">
         <div class="view active" id="fw-dashboard">
           <div class="page-header"><div><h1>My Work Queue</h1><p>Active assignments and tasks requiring attention.</p></div></div>
-          <div class="stats-grid">
-            <div class="stat-card"><div class="stat-label">Active Tasks</div><div class="stat-value amber" id="fw-stat-active">0</div></div>
-            <div class="stat-card"><div class="stat-label">In Progress</div><div class="stat-value blue" id="fw-stat-prog">0</div></div>
-            <div class="stat-card"><div class="stat-label">Completed Today</div><div class="stat-value green" id="fw-stat-done">0</div></div>
-            <div class="stat-card"><div class="stat-label">Total Assigned</div><div class="stat-value" id="fw-stat-total">0</div></div>
+          <div class="stats-panel">
+            <div class="stat-cell"><div class="stat-label">Active Tasks</div><div class="stat-value amber" id="fw-stat-active">0</div></div>
+            <div class="stat-cell"><div class="stat-label">In Progress</div><div class="stat-value blue" id="fw-stat-prog">0</div></div>
+            <div class="stat-cell"><div class="stat-label">Completed Today</div><div class="stat-value green" id="fw-stat-done">0</div></div>
+            <div class="stat-cell"><div class="stat-label">Total Assigned</div><div class="stat-value" id="fw-stat-total">0</div></div>
           </div>
-          <div class="section-title" style="margin-bottom:14px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>My Assignments</div>
-          <div id="fw-queue-list"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><p>No tasks assigned yet</p></div></div>
+          <div class="widget">
+            <div class="widget-header">
+              <div>
+                <div class="widget-title">My assignments</div>
+              </div>
+            </div>
+            <div id="fw-queue-list"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><p>No tasks assigned yet</p></div></div>
+          </div>
         </div>
         <div class="view" id="fw-history">
           <div class="page-header"><div><h1>Task History</h1><p>All completed and closed work orders.</p></div></div>
@@ -108,8 +113,17 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="ut-wo-id"/>
-      <div class="form-group"><label>Work Order</label><input class="form-control" id="ut-title" disabled/></div>
-      <div class="form-group"><label>Current Status</label><input class="form-control" id="ut-cur-status" disabled/></div>
+      <div class="form-row">
+        <div class="form-group"><label>Work Order</label><input class="form-control" id="ut-title" disabled/></div>
+        <div class="form-group"><label>Current Status</label><input class="form-control" id="ut-cur-status" disabled/></div>
+      </div>
+      <!-- What the inspector found, and what the supervisor asked for. -->
+      <div class="assign-panel">
+        <div class="assign-panel-head">Inspector's Findings</div>
+        <div id="ut-report-desc" style="font-size:13px;color:var(--label);line-height:1.65"></div>
+        <div class="assign-panel-head" style="margin-top:12px">Supervisor's Instructions</div>
+        <div id="ut-instructions" style="font-size:13px;color:var(--label);line-height:1.65"></div>
+      </div>
       <div class="form-group"><label>Update Status To <span style="color:var(--red)">*</span></label>
         <select class="form-control" id="ut-status">
           <option value="in_progress">In Progress</option>
@@ -125,6 +139,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-dark" onclick="closeModal('modal-update-task')">Cancel</button>
+      <button class="btn btn-dark" data-print-btn="self" style="display:none" onclick="openPrint()">Print Job Sheet</button>
       <button class="btn btn-amber" onclick="updateTaskStatus()">Submit Update</button>
     </div>
   </div>
@@ -132,10 +147,10 @@
 
 <!-- Profile Modal -->
 <div class="overlay" id="modal-profile">
-  <div class="modal modal-sm">
+  <div class="modal">
     <div class="modal-header"><div><h2>My Profile</h2></div><button class="btn-close" onclick="closeModal('modal-profile')">×</button></div>
     <div class="modal-body">
-      <div style="text-align:center;margin-bottom:20px">
+      <div class="prof-head">
         <div class="avatar-wrap">
           <div class="avatar" id="prof-av" style="width:64px;height:64px;font-size:24px" onclick="viewAvatar()"></div>
           <button type="button" class="avatar-edit-badge" id="prof-photo-btn" style="display:none" title="Change photo" aria-label="Change photo" onclick="document.getElementById('prof-photo-inp').click()">
@@ -145,8 +160,8 @@
             </svg>
           </button>
         </div>
-        <div style="font-size:16px;font-weight:700;color:var(--text)" id="prof-name"></div>
-        <div style="font-size:12px;color:var(--muted)" id="prof-role"></div>
+        <div class="prof-head-name" id="prof-name"></div>
+        <div class="prof-head-role" id="prof-role"></div>
         <input type="file" id="prof-photo-inp" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="stageAvatar(this)"/>
         <button class="action-link" id="prof-photo-remove" style="color:var(--red);display:none;margin-top:10px" onclick="stageAvatarRemove()">Remove photo</button>
       </div>
@@ -170,21 +185,21 @@
       <!-- EDIT FORM — hidden until Edit Profile is pressed -->
       <div id="prof-edit" style="display:none">
         <div class="form-group"><label>Full Name</label><input class="form-control" id="prof-name-inp"/></div>
-        <div class="form-group">
-          <label>Email</label>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Email <span class="info-wrap"><button type="button" class="info-btn" aria-expanded="false" aria-label="About your email and role" onclick="toggleInfo(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-5"/><path d="M12 8h.01"/></svg></button><span class="info-pop" role="note" hidden>Your email identifies your account and cannot be changed here. Your role is set through team management, not from this form.</span></span></label>
           <input class="form-control" id="prof-email-inp" disabled/>
-          <p style="font-size:11.5px;color:var(--muted);margin-top:5px">
-            Your email identifies your account and cannot be changed here.
-          </p>
         </div>
-        <p style="font-size:11.5px;color:var(--muted);margin:-4px 0 14px">
-          Your role is set through team management, not from this form.
-        </p>
 
-        <div class="section-title">Change password</div>
-        <div class="form-group"><label>Current Password</label><input class="form-control" type="password" id="prof-curpass" placeholder="Required only if changing password"/></div>
-        <div class="form-group"><label>New Password</label><input class="form-control" type="password" id="prof-pass" placeholder="Leave blank to keep current"/></div>
-        <p style="font-size:11.5px;color:var(--muted)">Password must contain at least 8 characters, 1 uppercase letter, 1 lowercase letter, and 1 number.</p>
+        <!-- Changing a password is a separate job from editing a profile,
+             so it is set off behind a rule rather than reading as two more
+             profile fields. -->
+        <div class="prof-section">
+          <div class="section-title">Change password</div>
+          <p class="prof-section-note">Leave both boxes empty to keep your current password.</p>
+          <div class="form-group"><label>Current Password</label><input class="form-control" type="password" id="prof-curpass" placeholder="Required only if changing password"/></div>
+          <div class="form-group" style="margin-bottom:0"><label>New Password</label><input class="form-control" type="password" id="prof-pass" placeholder="Leave blank to keep current"/></div>
+          <p class="form-hint">At least 8 characters, with one uppercase letter, one lowercase letter and one number.</p>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -204,6 +219,36 @@
                 object-fit:cover;border:3px solid var(--card);display:block"/>
     <button class="lightbox-close" style="top:-8px;right:-8px" onclick="closeModal('modal-avatar')">×</button>
   </div>
+</div>
+
+<!-- ══ WORK ORDER DETAIL (read-only) ═════════════════════ -->
+<!-- Shares rd-title / rd-id / rd-body with the other portals so openWODetail
+     works here unchanged. The footer offers the job sheet rather than the
+     case file: a field worker's document is the work they were given, not
+     the inspection paperwork around it. No rd-actions slot — crew changes
+     and assignment belong to a supervisor. -->
+<div class="overlay" id="modal-report-detail">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2 id="rd-title">Work Order</h2><p id="rd-id">WO-000</p></div>
+      <button class="btn-close" onclick="closeModal('modal-report-detail')">&times;</button>
+    </div>
+    <div class="modal-body" id="rd-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-report-detail')">Close</button>
+      <button class="btn btn-amber" data-print-btn="self" style="display:none" onclick="openPrint()">Save as PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- The detail renders photo evidence as thumbnails, and those open the
+     lightbox. Without this markup openLightbox() has nothing to show. -->
+<div class="lightbox-overlay" id="lightbox-overlay" onclick="if(event.target===this) closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+  <div class="lightbox-counter" id="lightbox-counter"></div>
+  <button class="lightbox-arrow prev" id="lightbox-prev" onclick="lightboxNav(-1)">&lsaquo;</button>
+  <div class="lightbox-track" id="lightbox-track"></div>
+  <button class="lightbox-arrow next" id="lightbox-next" onclick="lightboxNav(1)">&rsaquo;</button>
 </div>
 
 <script src="app.js"></script>

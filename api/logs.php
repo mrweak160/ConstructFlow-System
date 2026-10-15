@@ -66,7 +66,10 @@ if ($method === 'GET' && $action === 'export') {
     $db     = getDB();
 
     $stmt = $db->prepare(
-        'SELECT l.logged_at, u.name AS user, l.action, l.target_type, l.target_id, l.description, l.ip_address
+        // ip_address is deliberately NOT exported. It is still recorded in
+        // ActivityLogs for the audit trail, but a CSV gets emailed and shared,
+        // and an IP is personal data under the Data Privacy Act.
+        'SELECT l.logged_at, u.name AS user, l.action, l.target_type, l.target_id, l.description
          FROM ActivityLogs l
          LEFT JOIN Users u ON l.user_id = u.user_id
          WHERE l.team_id = ?
@@ -85,7 +88,7 @@ if ($method === 'GET' && $action === 'export') {
     };
 
     $fp = fopen($path, 'w');
-    fputcsv($fp, ['Timestamp', 'User', 'Action', 'Target Type', 'Target ID', 'Description', 'IP Address']);
+    fputcsv($fp, ['Timestamp', 'User', 'Action', 'Target Type', 'Target ID', 'Description']);
     foreach ($rows as $row) {
         fputcsv($fp, array_map($safeCell, array_values($row)));
     }

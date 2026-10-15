@@ -1,0 +1,3 @@
+# Activity-log exports are delivered by api/logs.php to an administrator.
+# Never by URL: the file names are guessable.
+Require all denied

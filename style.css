@@ -1,3 +1,15 @@
+/* Inter, self-hosted. One variable file covers 300-800.
+   Previously loaded from fonts.googleapis.com, which cost two extra
+   DNS+TLS round trips and blocked first render (~3s measured). */
+@font-face{
+  font-family:"Inter";
+  font-style:normal;
+  font-weight:300 800;
+  font-display:swap;
+  src:url("fonts/inter-variable-latin.woff2") format("woff2");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
 /* ═══════════════════════════════════════════════════════
    ConstructFlow — Stylesheet
    Shared across 
@@ -10,11 +22,23 @@
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
+  /* The document scheme, not just the control scheme. Chrome paints a
+     <select> popup panel and the date picker from the DOCUMENT color-scheme;
+     setting it on the control alone leaves the panel white on a dark page. */
+  color-scheme:dark;
   --bg:#0f1117;--sidebar:#161b27;--card:#1c2233;--border:#2a3148;
   --amber:#f59e0b;--amber-dk:#d97706;--blue:#3b82f6;--green:#22c55e;
   --red:#ef4444;--orange:#f97316;--yellow:#eab308;
   --text:#f1f5f9;--muted:#8b98b4;--label:#cbd5e1;
-  --radius:10px;--sidebar-w:230px;
+  --radius:10px;--sidebar-w:230px;--bar-h:64px;
+
+  /* One spacing rhythm for the whole dashboard. Panel padding, grid gaps
+     and stack spacing all come from here, so nothing is eyeballed. */
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-7:32px;
+  --r-sm:8px;--r-md:12px;--r-lg:14px;
+  /* A flat drop shadow, not a gloss: it exists only to lift a panel off
+     the page so the eye can tell where one ends and the next begins. */
+  --elev:0 1px 2px rgba(0,0,0,.28), 0 10px 24px -14px rgba(0,0,0,.65);
 }
 html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:14px}
 
@@ -47,12 +71,12 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:
 /* ═══ DASHBOARD LAYOUT ═══ */
 .dash{display:flex;width:100%;height:100vh;overflow:hidden}
 .sidebar{width:var(--sidebar-w);min-width:var(--sidebar-w);background:var(--sidebar);display:flex;flex-direction:column;border-right:1px solid var(--border)}
-.sidebar-logo{padding:18px 16px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+.sidebar-logo{height:var(--bar-h);flex-shrink:0;padding:0 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
 .logo-badge{width:34px;height:34px;border-radius:8px;background:#1a1a2e;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden}
 .logo-badge img{width:26px;height:26px;display:block}.logo-name{font-weight:700;font-size:13.5px;color:var(--text)}
 .sidebar-user{padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);cursor:pointer}
 .sidebar-user:hover{background:rgba(255,255,255,.03)}
-.avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0}
+.avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11.5px;flex-shrink:0}
 .avatar-wrap{position:relative;width:64px;height:64px;margin:0 auto 12px}
 .avatar-edit-badge{position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:var(--amber);color:#1a1a2e;border:2px solid var(--card);padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .avatar-edit-badge:hover{background:var(--amber-dk)}
@@ -64,19 +88,19 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:
 .user-info .uname{font-size:12.5px;font-weight:600;color:var(--text)}
 .user-info .urole{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
 .sidebar-nav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px}
-.nav-label{font-size:10px;color:var(--muted);font-weight:600;letter-spacing:1px;text-transform:uppercase;padding:8px 8px 4px}
-.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;transition:all .15s}
+/* Grouped section labels. A flat list of six items reads as a pile; the
+   same six under two headings read as a structure. */
+.nav-label{font-size:9.5px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:var(--sp-5) var(--sp-2) var(--sp-2);opacity:.75}
+.sidebar-nav > .nav-label:first-child{padding-top:var(--sp-2)}
+.nav-item{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-2) var(--sp-3);border-radius:var(--r-sm);font-size:12.5px;font-weight:500;color:var(--muted);cursor:pointer;transition:background .15s,color .15s}
 .nav-item:hover{background:var(--card);color:var(--text)}
 .nav-item.active{background:var(--amber);color:#1a1a2e;font-weight:600}
 .nav-item svg{width:16px;height:16px;flex-shrink:0}
 .sidebar-signout{padding:12px 10px;border-top:1px solid var(--border)}
-.btn-signout{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;width:100%;background:none;border:none;color:var(--muted);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif}
-.btn-signout:hover{background:rgba(239,68,68,.12);color:#ef4444}
-.btn-signout svg{width:16px;height:16px}
 
 /* MAIN */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.topbar{padding:14px 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:var(--bg);flex-shrink:0;gap:12px}
+.topbar{height:var(--bar-h);padding:0 24px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:var(--bg);flex-shrink:0;gap:12px}
 .topbar-left{display:flex;align-items:center;gap:10px}
 .topbar-title{font-size:15px;font-weight:600;color:var(--text)}
 .topbar-teamdesc{font-size:11.5px;color:var(--muted);line-height:1.3;margin-top:1px;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -100,123 +124,307 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:
   padding:9px 11px;border-radius:7px;
 }
 .menu-item:hover{background:var(--bg);color:var(--amber)}
-.content{flex:1;overflow-y:auto;padding:24px}
+/* --content-x is the page gutter. The full-bleed table reads it back to
+   cancel itself out, so the two stay locked together. */
+.content{--content-x:var(--sp-7);--content-y:var(--sp-6);flex:1;overflow-y:auto;padding:var(--content-y) var(--content-x)}
+/* A page that ends in a full-bleed list runs it to the bottom of the
+   window: the view is a column at least as tall as the scroll area, and
+   the list takes the leftover height and cancels the bottom padding. A
+   direct child only, so a table nested in a pane is left alone. */
+.view.active:has(> .table-wrap, > .widget-bleed){display:flex;flex-direction:column;min-height:100%}
+.view.active > .table-wrap,
+.view.active > .widget-bleed{flex:1 0 auto;margin-bottom:calc(var(--content-y) * -1);border-bottom:none}
+/* The panel now runs past the rows, so the last row needs its own rule
+   to mark where the list ends. */
+.view.active > .table-wrap tbody tr:last-child,
+.view.active > .widget-bleed .event-row:last-child{border-bottom:1px solid var(--border)}
 
 /* VIEW SWITCHER */
 .view{display:none}
 .view.active{display:block}
 
 /* PAGE HEADER */
-.page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;gap:16px;flex-wrap:wrap}
-.view-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;gap:16px;flex-wrap:wrap}
-.page-header h1{font-size:20px;font-weight:700;color:var(--text);letter-spacing:-.3px}
-.page-header p{font-size:12.5px;color:var(--muted);margin-top:3px}
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:var(--sp-6);gap:var(--sp-4);flex-wrap:wrap}
+.page-header h1{font-size:19px;font-weight:700;color:var(--text);letter-spacing:-.5px}
+.page-header p{font-size:12px;color:var(--muted);margin-top:var(--sp-1);line-height:1.5}
 .ph-actions{display:flex;gap:8px;flex-wrap:wrap}
 
 /* BUTTONS */
-.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;border:none;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif}
 .btn svg{width:15px;height:15px;flex-shrink:0}
 .btn-amber{background:var(--amber);color:#1a1a2e}
 .btn-amber:hover{background:var(--amber-dk)}
 .btn-dark{background:var(--card);color:var(--text);border:1px solid var(--border)}
 .btn-dark:hover{background:var(--border)}
-.btn-danger{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.2)}
-.btn-danger:hover{background:rgba(239,68,68,.2)}
-.btn-sm{padding:6px 12px;font-size:12px}
+.btn-sm{padding:6px 12px;font-size:11.5px}
 
-/* STATS */
-.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:24px}
-.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px}
-.stat-label{font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
-.stat-value{font-size:28px;font-weight:700;color:var(--text);letter-spacing:-1px;line-height:1}
+/* THE STAT PANEL — the four figures as one object rather than four
+   floating cards. The 1px gap sits over a border-coloured backing, which
+   paints the dividers automatically and stays correct at every wrap. */
+.stats-panel{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:1px;background:var(--border);
+  border:1px solid var(--border);border-radius:var(--r-lg);
+  overflow:hidden;margin-bottom:var(--sp-5);
+}
+.stat-cell{background:var(--card);padding:var(--sp-5)}
+/* Two-up all the way down. Stacking four figures into one column turned
+   the top of every phone screen into 360px of empty panel before any
+   actual content. Only below 360px is there not room for two. */
+@media(max-width:1180px){.stats-panel{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:359px){.stats-panel{grid-template-columns:1fr}}
+.stat-label{font-size:10.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.7px;margin-bottom:var(--sp-3)}
+.stat-value{font-size:26px;font-weight:700;color:var(--text);letter-spacing:-1.2px;line-height:1}
 .stat-value.amber{color:var(--amber)}
 .stat-value.green{color:var(--green)}
 .stat-value.red{color:var(--red)}
 .stat-value.blue{color:var(--blue)}
 
 /* SECTION */
-.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-.section-title{font-size:14px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-4);gap:var(--sp-3)}
+.section-title{font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px}
 .section-title svg{width:15px;height:15px;color:var(--amber)}
 
 /* TABLE */
-.table-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:auto}
+.table-wrap{
+  background:var(--card);
+  border:none;border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  border-radius:0;overflow:auto;box-shadow:none;
+  margin-left:calc(var(--content-x) * -1);
+  margin-right:calc(var(--content-x) * -1);
+}
 table{width:100%;border-collapse:collapse;min-width:600px}
-thead th{padding:10px 14px;text-align:left;font-size:10.5px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border);white-space:nowrap}
+thead th{padding:var(--sp-3) var(--sp-5);text-align:left;font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid var(--border);white-space:nowrap;background:rgba(255,255,255,.015)}
 tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
 tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:rgba(255,255,255,.02)}
-tbody td{padding:11px 14px;font-size:13px;color:var(--label)}
+/* A row is the click target for its own record. The buttons that used to
+   sit in an Action column are offered inside the detail the row opens, so
+   the table carries data and nothing else. Focusable, because removing the
+   buttons would otherwise take the rows away from the keyboard. */
+.row-link{cursor:pointer}
+tbody tr.row-link:hover{background:rgba(255,255,255,.055)}
+.row-link:focus-visible{outline:2px solid var(--amber);outline-offset:-2px}
+.m-card.row-link:active{transform:scale(.995)}
+tbody td{padding:var(--sp-4) var(--sp-5);font-size:12.5px;color:var(--label)}
 td.id{color:var(--muted);font-size:12px;font-weight:500}
 td.issue{font-weight:500;color:var(--text)}
 
 /* BADGES */
-.badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
-.badge-critical{background:rgba(239,68,68,.15);color:#f87171}
-.badge-high{background:rgba(249,115,22,.15);color:#fb923c}
-.badge-moderate{background:rgba(234,179,8,.15);color:#facc15}
-.badge-low{background:rgba(34,197,94,.15);color:#4ade80}
-.badge-pending{background:rgba(139,152,180,.12);color:var(--muted)}
-.badge-assigned{background:rgba(59,130,246,.12);color:#60a5fa}
-.badge-inprogress{background:rgba(245,158,11,.12);color:var(--amber)}
-.badge-completed{background:rgba(34,197,94,.12);color:#4ade80}
+/* SEVERITY — a graded mark. Square corners and a solid rule on the
+   leading edge; the rule takes the text colour, so the grade is
+   legible from the bar before the word is. The fill steps up with the
+   grade, which puts the weight where the urgency is instead of giving
+   all four the same presence. */
+.badge{
+  display:inline-block;padding:3px 9px 3px 7px;
+  border-radius:3px;border-left:3px solid currentColor;
+  font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  white-space:nowrap;line-height:1.6;
+}
+/* Severity: an icon and bold coloured text, no box. The icon is a mask
+   filled with currentColor, so it always matches the word; its mark
+   count (! !! !!! and the warning triangle) carries the grade even in
+   greyscale. The word sets the baseline — an empty icon box would
+   otherwise lift it above the text beside the badge — and the icon
+   centres on the line. */
+.badge-low,.badge-moderate,.badge-high,.badge-critical{
+  display:inline-flex;align-items:baseline;gap:5px;
+  background:none;border-left:none;border-radius:0;padding:0;
+  font-weight:800;letter-spacing:.4px;
+}
+.badge-low::before,.badge-moderate::before,.badge-high::before,.badge-critical::before{
+  content:'';width:15px;height:15px;flex-shrink:0;align-self:center;background:currentColor;
+  -webkit-mask:var(--sev-icon) center/contain no-repeat;
+          mask:var(--sev-icon) center/contain no-repeat;
+}
+.badge-low{color:#4ade80;--sev-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 8.5v3.5'/%3E%3Cpath d='M12 15.6v.1'/%3E%3C/svg%3E")}
+.badge-moderate{color:#facc15;--sev-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M9.8 8.5v3.5'/%3E%3Cpath d='M9.8 15.6v.1'/%3E%3Cpath d='M14.2 8.5v3.5'/%3E%3Cpath d='M14.2 15.6v.1'/%3E%3C/svg%3E")}
+.badge-high{color:#fb923c;--sev-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M8.2 8.5v3.5'/%3E%3Cpath d='M8.2 15.6v.1'/%3E%3Cpath d='M12 8.5v3.5'/%3E%3Cpath d='M12 15.6v.1'/%3E%3Cpath d='M15.8 8.5v3.5'/%3E%3Cpath d='M15.8 15.6v.1'/%3E%3C/svg%3E")}
+.badge-critical{color:#f87171;--sev-icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2.6 22.4 20.6H1.6Z'/%3E%3Cpath d='M12 9.2v5'/%3E%3Cpath d='M12 17.4v.1'/%3E%3C/svg%3E")}
+
+/* STATUS — not a scale, so not a chip. A dot and plain text, with no
+   box of its own: where a row carries both, the severity should be the
+   thing the eye lands on. */
+.badge-pending,.badge-assigned,.badge-inprogress,.badge-completed,
+.badge-amber,.badge-green{
+  display:inline-flex;align-items:center;gap:6px;
+  background:none;border-left:none;border-radius:0;
+  padding:0;font-weight:600;letter-spacing:.5px;
+}
+.badge-pending::before,.badge-assigned::before,
+.badge-inprogress::before,.badge-completed::before,
+.badge-amber::before,.badge-green::before{
+  content:'';width:6px;height:6px;border-radius:50%;
+  background:currentColor;flex-shrink:0;
+}
+.badge-pending{color:var(--muted)}
+.badge-assigned{color:#60a5fa}
+.badge-inprogress{color:var(--amber)}
+.badge-completed{color:#4ade80}
+.badge-amber{color:var(--amber)}
+.badge-green{color:#4ade80}
 
 .status{display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:500;white-space:nowrap}
 .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .dot-green{background:var(--green)}
 .dot-amber{background:var(--amber)}
 .dot-blue{background:var(--blue)}
-.action-link{color:var(--amber);font-size:12px;font-weight:600;cursor:pointer;text-transform:uppercase;letter-spacing:.3px;background:none;border:none;font-family:'Inter',sans-serif;padding:0}
-.action-link:hover{text-decoration:underline}
+.action-link{display:inline-flex;align-items:center;gap:5px;color:var(--amber);font-size:11px;font-weight:600;cursor:pointer;text-transform:uppercase;letter-spacing:.3px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);border-radius:7px;font-family:'Inter',sans-serif;padding:5px 11px;transition:background .15s,border-color .15s;white-space:nowrap}
+.action-link:hover{background:rgba(245,158,11,.20);border-color:var(--amber);text-decoration:none}
+.action-link+.action-link{margin-left:6px}
+.action-link:disabled{opacity:.45;cursor:not-allowed}
+/* Action cells only (:has keeps this off columns that end in a status badge,
+   e.g. task history). When the column is too narrow the buttons wrap, so
+   centre them and space them evenly instead of a ragged left edge.
+   Browsers without :has() simply keep the previous left alignment. */
+tbody td:has(> .action-link){text-align:center}
+tbody td:has(> .action-link) .action-link{margin:3px}
+tbody td:has(> .action-link) .action-link+.action-link{margin-left:3px}
+
+/* Admin > Members action column. A fixed-width span used to hold the first
+   control so the Remove buttons lined up, but the "Change role" button renders
+   wider than that box and spilled into Remove. A flex row with a gap keeps the
+   alignment and guarantees the spacing. */
+.adm-actions{display:inline-flex;align-items:center;gap:10px}
+.adm-actions-slot{display:inline-flex;align-items:center;min-width:118px}
+.adm-actions-note{font-size:11.5px;color:var(--muted)}
+.adm-actions .action-link+.action-link,
+.adm-actions .action-link{margin:0}
+/* Destructive actions keep the same shape in red. */
+.action-link[style*="--red"]{background:rgba(239,68,68,.10);border-color:rgba(239,68,68,.35)}
+.action-link[style*="--red"]:hover{background:rgba(239,68,68,.20);border-color:var(--red)}
 
 /* TWO-COL */
-.two-col{display:grid;grid-template-columns:1fr 320px;gap:16px}
+.two-col{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:var(--sp-4);align-items:start}
 
 /* DARK CARD */
 
 /* REPORT CARD (supervisor) */
-.report-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:12px}
+.report-card{
+  background:var(--card);
+  border:none;border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  border-radius:0;
+  padding:var(--sp-4) var(--panel-x);
+  margin:0 calc(var(--panel-x) * -1) -1px;
+}
+.report-card:last-child{margin-bottom:0}
 .report-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
 .report-card-meta{display:flex;align-items:center;gap:8px}
-.report-card h4{font-size:14px;font-weight:700;color:var(--text);margin:8px 0 6px;letter-spacing:-.1px}
-.report-card p{font-size:12.5px;color:var(--muted);line-height:1.5}
-.report-card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:wrap;gap:8px}
-.report-card-loc{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted)}
-.report-card-loc svg{width:13px;height:13px}
-.report-time{font-size:11.5px;color:var(--muted)}
-.btn-assign{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:6px;background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.25);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif}
+.report-card h4{font-size:13px;font-weight:700;color:var(--text);margin:8px 0 6px;letter-spacing:-.1px}
+.report-card p{font-size:12px;color:var(--muted);line-height:1.5}
+/* No wrap: the action stays on the right of the location line whatever
+   the location says. Wrapping made identical rows lay out differently
+   purely on the length of an address. */
+.report-card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:nowrap;gap:10px}
+/* A block, not a flex row, so the text can actually take an ellipsis —
+   text-overflow does not apply to an anonymous flex item. */
+.report-card-loc{
+  display:block;flex:1 1 auto;min-width:0;
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  font-size:11.5px;color:var(--muted);
+}
+.report-card-loc svg{width:13px;height:13px;vertical-align:-2px;margin-right:5px;flex-shrink:0}
+.report-time{font-size:11px;color:var(--muted)}
+.btn-assign{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:6px;background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.25);font-size:11.5px;font-weight:600;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif;flex-shrink:0;white-space:nowrap}
 .btn-assign:hover{background:rgba(245,158,11,.2)}
 .btn-assign:disabled{opacity:.4;cursor:not-allowed}
 
 /* WIDGET */
-.widget{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:14px}
-.widget-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-.widget-title{font-size:13px;font-weight:600;color:var(--text)}
-.wo-list{display:flex;flex-direction:column;gap:8px}
-.wo-row{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--label)}
+/* THE PANEL — the single surface every dashboard block sits on.
+   .widget, .stat-card and .table-wrap previously each declared their own
+   background, border, radius and padding, which is why a page could show
+   three card styles at once. They now share one definition. */
+/* A card: inset, bordered, rounded. --panel-x is its horizontal padding,
+   read back by any row that pulls out to the panel edge so the two can
+   never drift apart. */
+.widget{
+  --panel-x:var(--sp-5);
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:var(--sp-5) var(--panel-x);
+  margin-bottom:var(--sp-5);box-shadow:none;overflow:hidden;
+}
+.widget-header{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  gap:var(--sp-3);margin-bottom:var(--sp-4);
+}
+.widget-title{font-size:13.5px;font-weight:650;color:var(--text);letter-spacing:-.2px}
+.widget-head-actions{display:flex;align-items:center;gap:var(--sp-2);flex-shrink:0}
+
+/* THE SUMMARY CARD — one card holding the four figures and the work
+   order status, divided internally rather than split into two slabs. */
+.summary-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r-lg);overflow:hidden;margin-bottom:var(--sp-5);
+}
+.summary-card > .stats-panel{margin:0;border:none;border-radius:0}
+.summary-card > .widget{
+  margin:0;border:none;border-top:1px solid var(--border);
+  border-radius:0;overflow:visible;
+}
+/* Three figures (admin). Kept three across: at two-up the third would sit
+   alone with an empty, border-coloured slot beside it. */
+.stats-panel.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:359px){.stats-panel.cols-3{grid-template-columns:1fr}}
+
+/* Inside a panel, queue cards become rows, like the report rows on the
+   supervisor dashboard. A bordered card inside a bordered card is the
+   clutter the panels were meant to remove. */
+.widget .queue-card{
+  border:none;border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  border-radius:0;
+  padding:var(--sp-4) var(--panel-x);
+  margin:0 calc(var(--panel-x) * -1) -1px;
+}
+.widget .queue-card:last-child{margin-bottom:0}
+/* Flat and spread: three equal columns rather than three items bunched at
+   the left of a very wide band. Matches the rhythm of the stat cells. */
+.wo-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--sp-3)}
+.wo-row{display:flex;align-items:center;justify-content:center;gap:var(--sp-2);font-size:12.5px;color:var(--label)}
+.wo-row .count{font-size:14px;font-weight:700;color:var(--text)}
 .wo-row .count{font-weight:700;color:var(--text)}
 
 /* QUEUE CARD (field worker) */
 .queue-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:10px;border-left:3px solid var(--amber)}
 .queue-card.done{border-left-color:var(--green);opacity:.8}
 .queue-card-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-.queue-card h4{font-size:13.5px;font-weight:700;color:var(--text);margin:6px 0 4px}
-.queue-card p{font-size:12.5px;color:var(--muted)}
+.queue-card h4{font-size:13px;font-weight:700;color:var(--text);margin:6px 0 4px}
+.queue-card p{font-size:12px;color:var(--muted)}
 .queue-card-foot{display:flex;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:wrap;gap:8px}
 
 /* TASK PANEL */
 
 /* ADMIN */
-.chip{display:inline-block;padding:3px 9px;border-radius:4px;font-size:10.5px;font-weight:700;letter-spacing:.3px;line-height:1.5;white-space:nowrap}
+.chip{display:inline-block;padding:3px 9px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.3px;line-height:1.5;white-space:nowrap}
 .chip-admin{background:rgba(239,68,68,.12);color:#f87171}
 .chip-sup{background:rgba(59,130,246,.12);color:#60a5fa}
 .chip-insp{background:rgba(34,197,94,.12);color:#4ade80}
 .chip-worker{background:rgba(234,179,8,.12);color:#facc15}
-.event-row{padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
+/* A flex row of "text block" + "actions". Without min-width:0 the text block
+   refuses to shrink below a long email address, which pushed the Cancel button
+   outside the card on narrow screens. */
+.event-row{padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.event-row > *:first-child{min-width:0;flex:1 1 auto}
+.event-name{overflow-wrap:anywhere}
 .event-row:last-child{border-bottom:none}
-.event-name{font-size:13px;font-weight:600;color:var(--text)}
-.event-by{font-size:11.5px;color:var(--muted)}
-.event-time{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.widget .event-row{
+  margin:0 calc(var(--panel-x) * -1);
+  padding:var(--sp-3) var(--panel-x);
+}
+.widget .event-row:first-child{border-top:1px solid var(--border)}
+.widget .event-row:last-child{border-bottom:1px solid var(--border)}
+/* Full-bleed panel, like .table-wrap: out to the page edge, rule above
+   and below only. A last row's own bottom rule would double the panel's. */
+.widget.widget-bleed{
+  border-left:none;border-right:none;border-radius:0;
+  margin-left:calc(var(--content-x) * -1);
+  margin-right:calc(var(--content-x) * -1);
+  padding-bottom:0;
+}
+.widget-bleed .event-row:last-child{border-bottom:none}
+.event-name{font-size:12.5px;font-weight:600;color:var(--text)}
+.event-by{font-size:11px;color:var(--muted)}
+.event-time{font-size:11px;color:var(--muted);white-space:nowrap}
 
 /* SHOW PASSWORD */
 .pw-wrap{position:relative}
@@ -232,59 +440,189 @@ td.issue{font-weight:500;color:var(--text)}
 
 /* FILTER BUTTONS */
 .reports-filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
-.filter-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif}
+.filter-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--muted);font-size:11.5px;font-weight:500;cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif}
 .filter-btn:hover{color:var(--text)}
 .filter-btn.active{background:var(--amber);color:#1a1a2e;border-color:var(--amber);font-weight:600}
-
-/* NOTICE BOX*/
-.notice-box{
-  background:rgba(245,158,11,.10);
-  border:1px solid rgba(245,158,11,.28);
-  border-radius:8px;padding:11px 14px;margin-bottom:14px;
-  font-size:12.5px;line-height:1.55;color:#fcd34d;
-}
 
 /* EMPTY STATE */
 .empty-state{padding:48px 24px;text-align:center;color:var(--muted)}
 .empty-state svg{width:40px;height:40px;margin-bottom:12px;opacity:.4}
-.empty-state p{font-size:13px}
+.empty-state p{font-size:12.5px}
 
 /* ═══ OVERLAY / MODAL ═══ */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:400;align-items:center;justify-content:center;padding:20px}
 .overlay.open{display:flex}
 .modal{background:var(--card);border:1px solid var(--border);border-radius:14px;width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
 .modal-lg{max-width:680px}
-.modal-sm{max-width:400px}
 .modal-header{padding:20px 24px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.modal-header h2{font-size:16px;font-weight:700;color:var(--text)}
-.modal-header p{font-size:12px;color:var(--muted);margin-top:3px}
+.modal-header h2{font-size:15px;font-weight:700;color:var(--text)}
+.modal-header p{font-size:11.5px;color:var(--muted);margin-top:3px}
 .btn-close{background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;border-radius:6px;line-height:1;font-size:20px}
 .btn-close:hover{color:var(--text);background:var(--border)}
 .modal-body{padding:24px;overflow-y:auto;flex:1}
 .modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0}
 .prof-row,.info-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
 .prof-row:last-child,.info-row:last-child{border-bottom:none}
-.prof-label,.info-label{font-size:12px;color:var(--muted);flex-shrink:0}
-.prof-value,.info-value{font-size:13px;font-weight:600;color:var(--text);text-align:right;min-width:0;word-break:break-word}
+.prof-label,.info-label{font-size:11.5px;color:var(--muted);flex-shrink:0}
+.prof-value,.info-value{font-size:12.5px;font-weight:600;color:var(--text);text-align:right;min-width:0;word-break:break-word}
 
 /* FORM */
 .form-group{margin-bottom:18px}
-.form-group label{display:block;font-size:12.5px;font-weight:600;color:var(--label);margin-bottom:7px}
-.form-group label span{color:var(--red)}
-.form-control{width:100%;padding:10px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:13.5px;font-family:'Inter',sans-serif;outline:none;transition:border .2s}
+.form-group label{display:block;font-size:12px;font-weight:600;color:var(--label);margin-bottom:7px}
+/* The required asterisk only — not the spans inside an (i) popover. */
+.form-group label > span:not(.info-wrap){color:var(--red)}
+.form-control{width:100%;padding:10px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:'Inter',sans-serif;outline:none;transition:border .2s}
 .form-control:focus{border-color:var(--amber)}
 .form-control::placeholder{color:var(--muted)}
 textarea.form-control{resize:vertical;min-height:90px}
 select.form-control{-webkit-appearance:none;cursor:pointer}
+/* The dashboards are dark but native popups — the select option list, the
+   date picker, the scrollbar inside them — follow color-scheme, which
+   defaults to light. Without this the option list paints white on Android
+   and on Windows high-contrast. Scoped to the dark controls on purpose:
+   the auth pages use .auth-input and must stay light. */
+.form-control,.sort-select{color-scheme:dark}
+.form-control option,.sort-select option{background:var(--card);color:var(--text)}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.form-hint{font-size:11.5px;color:var(--muted);margin-top:5px}
+
+/* ── Compact filter bar ─────────────────────────────────────
+   One line rather than a 2x2 grid of form groups. The period is picked
+   from a preset and the From/To inputs only appear for "Custom": showing
+   both at once gave the panel two controls for one decision, which is
+   what made it feel busy. */
+/* One centred row. Bottom-aligning fields that stack a label over a control
+   put the two labels at different heights, because the select and the pill
+   group are not the same height. */
+.filter-bar{
+  display:flex;align-items:center;gap:var(--sp-3) var(--sp-5);flex-wrap:wrap;
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius);padding:12px 14px;margin-bottom:14px;
+}
+.fb-field{display:flex;flex-direction:row;align-items:center;gap:var(--sp-2);min-width:0}
+.fb-field > label{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
+.fb-field .form-control{margin:0}
+.fb-dates{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
+.fb-actions{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+/* A class, not the hidden attribute: the flex rules above would outrank
+   the browser's own display:none for [hidden]. */
+.fb-hide{display:none !important}
+
+/* ═══ INFO POPOVER ═══
+   A small (i) that reveals an explanation on click. Used for "how this
+   works" prose that does not need to be on screen all the time. Not for
+   field hints: those have to be readable while the field is being filled. */
+.info-wrap{position:relative;display:inline-flex;vertical-align:middle}
+.info-btn{
+  width:18px;height:18px;padding:0;border-radius:50%;
+  display:inline-grid;place-items:center;flex-shrink:0;
+  background:none;border:1px solid var(--border);color:var(--muted);
+  cursor:pointer;line-height:1;font-family:inherit;
+  transition:color .15s,border-color .15s;
+}
+.info-btn:hover,.info-btn[aria-expanded="true"]{color:var(--amber);border-color:var(--amber)}
+.info-btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.info-btn svg{width:11px;height:11px;display:block}
+.info-pop{
+  position:absolute;z-index:60;top:calc(100% + 8px);left:0;
+  width:max-content;max-width:min(340px,78vw);
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r-md);padding:var(--sp-4);
+  box-shadow:0 12px 30px -12px rgba(0,0,0,.7);
+  font-size:12px;font-weight:400;color:var(--muted);line-height:1.65;
+  text-align:left;white-space:normal;text-transform:none;letter-spacing:normal;
+}
+.info-pop[hidden]{display:none}
+.info-pop strong{color:var(--text);font-weight:650}
+/* Flipped when the panel would otherwise run off the right of the window. */
+.info-wrap.info-right .info-pop{left:auto;right:0}
+.widget-title .info-wrap{margin-left:6px}
+/* A panel clips its contents; an open explanation has to get out. */
+.widget:has(.info-pop:not([hidden])){overflow:visible}
+.filter-bar .form-hint{align-self:center;margin-left:auto}
+.filter-bar .form-hint:empty{display:none}
+
+/* The phone toolbar for a filter bar, and the bar inside its overlay
+   (fbEnhance in app.js). */
+.fb-toolbar{display:none}
+@media (max-width:720px){
+  .fb-toolbar{display:flex;align-items:center;gap:var(--sp-2);margin-bottom:var(--sp-3)}
+  .fb-toolbar > .btn + .btn{margin-left:auto}
+  .filter-bar:not(.fb-in-modal){display:none}
+}
+/* In the overlay the bar is a plain form — label over control, as in My
+   Profile — rather than a bordered strip. */
+.filter-bar.fb-in-modal{
+  display:flex;flex-direction:column;align-items:stretch;gap:var(--sp-5);
+  background:none;border:none;border-radius:0;padding:0;margin:0;
+}
+.fb-in-modal .fb-field,.fb-in-modal .fb-dates{flex:none;flex-direction:column;align-items:stretch;gap:7px}
+.fb-in-modal .fb-field > *{flex:none}
+.fb-in-modal .fb-field > label{font-size:12px;font-weight:600;color:var(--label);text-transform:none;letter-spacing:0}
+.fb-in-modal .reports-filter{display:flex;flex-wrap:nowrap}
+.fb-in-modal .reports-filter .filter-btn{flex:1 1 0;text-align:center;justify-content:center}
+.fb-in-modal > .fb-actions{display:none}
+.fb-in-modal .form-hint{margin-left:0}
+/* A small centred card, never full screen: it holds two or three fields.
+   Two classes deep so it outranks the phone rule that makes every other
+   modal fill the screen. */
+.overlay.fb-overlay,.overlay.overlay-compact{padding:16px;align-items:center;justify-content:center}
+.fb-overlay .modal,.overlay-compact .modal{
+  max-width:380px;height:auto;max-height:90vh;
+  border:1px solid var(--border);border-radius:var(--r-lg);
+}
+/* One field per row on a phone, labels in a fixed column so the controls
+   line up, each control taking the rest of its row. Side by side, the
+   period select and the Weighted/Count pair squeezed each other until
+   the pair stacked. */
+@media (max-width:720px){
+  .fb-field{min-width:0;flex:1 1 100%}
+  .fb-field > label{flex:0 0 64px}
+  .fb-field > .form-control,.fb-field > .cf-dd{flex:1 1 auto;min-width:0}
+  .fb-field > .reports-filter{flex:1 1 auto;flex-wrap:nowrap}
+  .fb-field > .reports-filter .filter-btn{flex:1 1 0;text-align:center;justify-content:center}
+  .fb-dates{flex:1 1 100%}
+  .fb-actions{margin-left:0;width:100%}
+  .fb-actions .btn{flex:1 1 auto;justify-content:center}
+  .filter-bar .form-hint{margin-left:0}
+}
+
+/* Workload rankings on a phone, where the table is hidden. */
+.wl-cards{padding:0;margin-bottom:0}
+@media (max-width:640px){ .wl-head{flex-direction:column;align-items:flex-start;gap:4px} }
+.wl-card{padding:var(--sp-3) var(--panel-x);border-bottom:1px solid var(--border)}
+.wl-card:last-child{border-bottom:none}
+.wl-top{display:flex;align-items:baseline;gap:var(--sp-2)}
+.wl-rank{flex:0 0 16px;font-size:11px;color:var(--muted)}
+.wl-name{flex:1 1 auto;min-width:0;font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wl-score{flex-shrink:0;font-size:11px;color:var(--muted)}
+.wl-score strong{font-size:14px;color:var(--text)}
+.wl-bar{height:4px;border-radius:2px;background:var(--border);overflow:hidden;margin:6px 0 6px 24px}
+.wl-bar span{display:block;height:100%;background:var(--amber)}
+.wl-meta{display:flex;flex-wrap:wrap;gap:2px 12px;margin-left:24px;font-size:11px;color:var(--muted)}
+.form-hint{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.55}
+
+/* ═══ PROFILE FORM ═══
+   The edit form stacks two unrelated jobs: who you are, and changing
+   your password. .section-title carries no margin of its own — on the
+   dashboards it sits inside .section-header, which supplies the spacing
+   — so here "Change password" landed flush on the label beneath it.
+   Scoped rather than fixed globally, so the dashboard headings are
+   left alone. */
+.prof-section{margin-top:26px;padding-top:22px;border-top:1px solid var(--border)}
+.prof-section .section-title{margin-bottom:5px}
+.prof-section-note{font-size:11px;color:var(--muted);line-height:1.55;margin-bottom:16px}
+
+/* Name and role were butted against the avatar above them. */
+.prof-head{text-align:center;margin-bottom:22px}
+.prof-head .prof-head-name{font-size:15px;font-weight:700;color:var(--text);margin-top:12px}
+.prof-head .prof-head-role{font-size:11.5px;color:var(--muted);margin-top:3px}
 .gps-row{display:flex;gap:8px;align-items:flex-end}
 .gps-row .form-control{flex:1}
 .photo-upload{border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:border .2s;position:relative}
 .photo-upload:hover{border-color:var(--amber)}
 .photo-upload input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 .photo-upload svg{width:28px;height:28px;color:var(--muted);margin-bottom:8px}
-.photo-upload p{font-size:12.5px;color:var(--muted)}
+.photo-upload p{font-size:12px;color:var(--muted)}
 .photo-preview{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .photo-preview img{width:64px;height:64px;border-radius:6px;object-fit:cover;border:1px solid var(--border)}
 .photo-thumb-wrap{position:relative;display:inline-block}
@@ -297,7 +635,7 @@ select.form-control{-webkit-appearance:none;cursor:pointer}
 .lightbox-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:500;align-items:center;justify-content:center}
 .lightbox-overlay.open{display:flex}
 .lightbox-close{position:absolute;top:16px;right:20px;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.1);color:#fff;border:none;cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;z-index:2}
-.lightbox-counter{position:absolute;top:22px;left:20px;color:#fff;font-size:13px;font-weight:600;background:rgba(255,255,255,.1);padding:4px 10px;border-radius:12px}
+.lightbox-counter{position:absolute;top:22px;left:20px;color:#fff;font-size:12.5px;font-weight:600;background:rgba(255,255,255,.1);padding:4px 10px;border-radius:12px}
 .lightbox-track{display:flex;width:100%;height:100%;transition:transform .3s ease;touch-action:pan-y}
 .lightbox-slide{flex:0 0 100%;display:flex;align-items:center;justify-content:center;padding:0 60px}
 .lightbox-slide img{max-width:100%;max-height:85vh;border-radius:8px;object-fit:contain;user-select:none;-webkit-user-drag:none}
@@ -313,17 +651,19 @@ select.form-control{-webkit-appearance:none;cursor:pointer}
 
 @media(min-width:641px) and (max-width:1024px){
   .sidebar{width:210px;min-width:210px}
-  .content{padding:18px}
-  .two-col{grid-template-columns:1fr}
-  .stats-grid{grid-template-columns:repeat(2,1fr)}
-  .topbar{padding:12px 18px}
+  .content{--content-x:18px;--content-y:18px;padding:var(--content-y) var(--content-x)}
+  /* minmax(0,1fr), not 1fr: a bare 1fr keeps a min-content floor, and
+     the nowrap location line would push the stacked column wider than
+     its container. */
+  .two-col{grid-template-columns:minmax(0,1fr)}
+  .topbar{padding:0 18px}
   .topbar-teamdesc{max-width:180px}
   .topbar-user .uemail{display:none}
 }
 .detail-row{display:flex;justify-content:space-between;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)}
 .detail-row:last-child{border-bottom:none}
-.detail-label{font-size:12px;color:var(--muted);font-weight:500;flex-shrink:0;width:130px}
-.detail-value{font-size:13px;color:var(--text);font-weight:500;text-align:right;flex:1}
+.detail-label{font-size:11.5px;color:var(--muted);font-weight:500;flex-shrink:0;width:130px}
+.detail-value{font-size:12.5px;color:var(--text);font-weight:500;text-align:right;flex:1}
 
 /* TOAST */
 .toast-container{position:fixed;bottom:24px;right:24px;z-index:999;display:flex;flex-direction:column;gap:8px}
@@ -343,10 +683,14 @@ select.form-control{-webkit-appearance:none;cursor:pointer}
 /* MOBILE */
 .mobile-card-list{display:none}
 .m-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px}
-.m-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:8px}
-.m-card-title{font-size:13.5px;font-weight:600;color:var(--text)}
-.m-card-id{font-size:11.5px;color:var(--muted);font-weight:500;margin-top:2px}
-.m-card-loc{font-size:12px;color:var(--muted);margin-bottom:10px}
+/* Same shape: a name/email block that must shrink and a role chip that must
+   not. The chip was being overrun by long names. */
+.m-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:10px}
+.m-card-top > .chip{flex-shrink:0}
+.m-card-title,.m-card-id{overflow-wrap:anywhere}
+.m-card-title{font-size:13px;font-weight:600;color:var(--text)}
+.m-card-id{font-size:11px;color:var(--muted);font-weight:500;margin-top:2px}
+.m-card-loc{font-size:11.5px;color:var(--muted);margin-bottom:10px}
 .m-card-footer{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
 
 @media(max-width:640px){
@@ -357,17 +701,37 @@ select.form-control{-webkit-appearance:none;cursor:pointer}
   .sidebar.open{left:0}
   .sidebar-overlay.open{display:block}
   .topbar-user .uname,.topbar-user .uemail{display:none}
-  .topbar{padding:12px 16px}
-  .content{padding:16px}
-  .stats-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .topbar{padding:0 16px}
+  .content{--content-x:16px;--content-y:16px;padding:var(--content-y) var(--content-x)}
+  /* All three on one line. Flex rather than equal thirds: an equal
+     column is narrower than "In Progress" needs at this width, so
+     thirds wrap. Sized to content, spread with space-between. */
+  .widget{--panel-x:var(--sp-4)}
+  .wo-list{display:flex;justify-content:space-between;gap:var(--sp-2)}
+  .wo-row{justify-content:flex-start;gap:6px;font-size:11.5px;white-space:nowrap}
+  .wo-row .count{font-size:12.5px}
+  .stat-cell{padding:14px var(--content-x)}
+  .stat-label{font-size:10px;letter-spacing:.5px;margin-bottom:6px}
   .stat-value{font-size:22px}
   .page-header{flex-direction:column;align-items:flex-start;gap:10px;margin-bottom:18px}
   .ph-actions{width:100%}
-  .table-wrap table{display:none}
+  .table-wrap{display:none}
   .mobile-card-list{display:block}
-  .two-col{grid-template-columns:1fr}
-  .overlay{padding:0;align-items:flex-end}
-  .modal,.modal-sm,.modal-lg{max-width:100%;width:100%;border-radius:18px 18px 0 0;max-height:92vh}
+  /* minmax(0,1fr), not 1fr: a bare 1fr keeps a min-content floor, and
+     the nowrap location line would push the stacked column wider than
+     its container. */
+  .two-col{grid-template-columns:minmax(0,1fr)}
+  /* Full screen on a phone. The bottom-sheet version left a strip of the
+     page showing above it and squeezed the body into 92vh; the modal is
+     already a flex column, so at full height the header and footer pin
+     themselves and the body takes what is left. */
+  .overlay{padding:0;align-items:stretch;justify-content:stretch}
+  .modal,.modal-lg{
+    max-width:100%;width:100%;height:100%;max-height:100%;
+    border-radius:0;border:none;
+  }
+  .modal-header{padding:16px 18px 14px}
+  .modal-footer{padding:14px 18px}
   .modal-body{padding:16px}
   .modal-header{padding:16px 16px 12px}
   .modal-footer{padding:12px 16px;gap:8px}
@@ -380,7 +744,85 @@ select.form-control{-webkit-appearance:none;cursor:pointer}
 }
 @media(min-width:641px){
   .mobile-card-list{display:none!important}
-  .table-wrap table{display:table!important}
+  .table-wrap{display:block!important}
   .sidebar{position:relative;left:0!important}
   .hamburger{display:none!important}
+}
+
+/* Address picker — one field that drills province → municipality → barangay */
+.addr-combo{position:relative}
+.addr-panel{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:50;max-height:260px;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.addr-head{position:sticky;top:0;display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--sidebar);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:var(--muted)}
+.addr-back{background:none;border:none;color:var(--amber);font-size:19px;line-height:1;cursor:pointer;padding:0 4px}
+.addr-opt{display:block;width:100%;text-align:left;background:none;border:none;padding:9px 12px;font-family:'Inter',sans-serif;font-size:12.5px;color:var(--text);cursor:pointer}
+.addr-opt:hover{background:var(--sidebar);color:var(--amber)}
+.addr-empty{padding:12px;font-size:12px;color:var(--muted);text-align:center}
+/* The address field is type=search purely to dodge credential autofill —
+   hide the clear button so it still looks like a normal form control. */
+.addr-combo input[type="search"]::-webkit-search-cancel-button,
+.addr-combo input[type="search"]::-webkit-search-decoration{-webkit-appearance:none;appearance:none}
+.addr-combo input[type="search"]{-webkit-appearance:none;appearance:none}
+
+
+/* Read-only report context inside the assign modal */
+.assign-panel{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px}
+.assign-panel-head{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--amber);margin-bottom:6px}
+.assign-panel .detail-row{padding:7px 0}
+/* Assign modal. Three short fields share a row; the crew gets its own. */
+.form-row.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:760px){ .modal .form-row.cols-3{grid-template-columns:1fr} }
+.sev-readout{
+  display:flex;align-items:center;gap:var(--sp-2);
+  min-height:42px;padding:0 2px;font-size:12px;color:var(--muted);
+}
+.sev-readout .badge{font-size:11px}
+.crew-head{display:flex;align-items:center;gap:6px;margin-bottom:7px}
+.crew-head label{margin-bottom:0}
+.crew-count{margin-left:auto;font-size:11.5px;color:var(--muted)}
+.crew-row{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:center;gap:var(--sp-3)}
+.crew-row + .crew-row{margin-top:var(--sp-2)}
+.crew-role{font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+.crew-role.is-lead{color:var(--amber)}
+.assign-panel .photo-preview img{width:52px;height:52px;object-fit:cover;border-radius:6px;cursor:pointer}
+@media (max-width:760px){ .modal .form-row{grid-template-columns:1fr} }
+
+/* Sort controls above a list */
+.sort-bar{display:flex;align-items:center;gap:9px;margin:0 0 12px}
+.sort-label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+.sort-select{background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'Inter',sans-serif;font-size:12px;padding:6px 10px;cursor:pointer}
+.sort-dir{display:inline-flex;align-items:center;justify-content:center;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.35);border-radius:8px;color:var(--amber);padding:7px 9px;cursor:pointer}
+.sort-dir:hover{background:rgba(245,158,11,.20);border-color:var(--amber)}
+.sort-dir svg{width:15px;height:15px;display:block}
+/* Icon only, so the lit arrow is what tells you the direction. */
+.sort-dir .sd-down,.sort-dir .sd-up{opacity:.28}
+.sort-dir.is-desc .sd-down{opacity:1}
+.sort-dir.is-asc  .sd-up{opacity:1}
+
+/* ── CUSTOM DROPDOWNS ───────────────────────────────────────
+   The native <select> list is painted by the OS and ignores this theme, so
+   the page draws its own. The real <select> stays in the DOM, hidden, and
+   remains the source of truth. See the matching note in app.js. */
+.cf-dd{position:relative;display:block}
+.cf-dd > select{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;pointer-events:none;margin:0;padding:0;border:0}
+.cf-dd-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;cursor:pointer}
+.cf-dd-btn .cf-dd-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cf-dd-btn > svg{width:14px;height:14px;flex:none;opacity:.7}
+.cf-dd-btn:disabled{opacity:.5;cursor:not-allowed}
+.cf-dd-panel{display:none;position:fixed;z-index:1000;max-height:min(280px,60vh);overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,.5);padding:4px}
+.cf-dd.open .cf-dd-panel{display:block}
+.cf-dd-opt{display:block;width:100%;text-align:left;background:none;border:none;border-radius:7px;padding:9px 12px;font-family:'Inter',sans-serif;font-size:12.5px;color:var(--text);cursor:pointer;white-space:nowrap}
+.cf-dd-opt:hover{background:var(--sidebar);color:var(--amber)}
+.cf-dd-opt.is-sel{color:var(--amber);font-weight:600}
+.cf-dd-opt:disabled{opacity:.45;cursor:not-allowed}
+
+/* ─── NARROW PHONES ───
+   Last in the file on purpose. These override declarations inside the
+   max-width:640px block, which matches at these widths too and sets the
+   same properties at the same specificity — so this only wins by coming
+   after it. The three status items otherwise fill the row to within a
+   pixel and read as one run-on string. */
+@media(max-width:359px){
+  .wo-row{font-size:10.5px;gap:5px}
+  .wo-row .count{font-size:11.5px}
+  .widget{--panel-x:var(--sp-3)}
 }

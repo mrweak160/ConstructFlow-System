@@ -103,6 +103,71 @@ async function signOut() {
   window.location.href = 'login.html';
 }
 
+// ── DELETE ACCOUNT ────────────────────────────────────────
+// Reachable only from the stranded pane. auth.js is not loaded on
+// this page, so the two modal helpers are local rather than shared.
+function openModalById(id)  { el(id).classList.add('open'); }
+function closeModalById(id) { el(id).classList.remove('open'); }
+
+/** "31 inspection reports, 4 field updates and 1 work order" */
+function recordPhrase(c) {
+  const bits = [];
+  const add = (n, one, many) => { if (n > 0) bits.push(`${n} ${n === 1 ? one : many}`); };
+  add(c.reports,     'inspection report', 'inspection reports');
+  add(c.tasks,       'inspection task',   'inspection tasks');
+  add(c.work_orders, 'work order',        'work orders');
+  add(c.crew,        'crew assignment',   'crew assignments');
+  add(c.updates,     'field update',      'field updates');
+  add(c.generated,   'generated report',  'generated reports');
+  add(c.owned_teams, 'team you own',      'teams you own');
+  if (bits.length <= 1) return bits[0] || '';
+  return `${bits.slice(0, -1).join(', ')} and ${bits[bits.length - 1]}`;
+}
+
+async function openDeleteAccount() {
+  el('da-pass').value = '';
+  clearErr('da-err');
+  el('da-what').innerHTML = '<p>Checking what is linked to your account…</p>';
+  openModalById('modal-delete-account');
+
+  const res = await api('auth', 'account_summary', undefined);
+  if (!res.success) {
+    el('da-what').innerHTML = '<p>Your account and personal details will be permanently erased, and you will be signed out.</p>';
+  } else if (res.data.erasable) {
+    el('da-what').innerHTML =
+      '<p>Your account and personal details will be permanently erased, and you will be signed out. ' +
+      'Nothing on this system will be left behind.</p>';
+  } else {
+    // Numbers only — nothing here comes from another user, so there is
+    // no untrusted text going into the markup. The wording is specific
+    // because the name is NOT erased, and promising otherwise would be
+    // a lie the person only discovers after the fact.
+    el('da-what').innerHTML =
+      '<p>Your email address, date of birth, home address and profile photo will be ' +
+      'permanently erased, and you will be signed out. You will not be able to log in again.</p>' +
+      `<p>Your name stays on the ${recordPhrase(res.data.counts)} linked to your account, ` +
+      'marked <strong>(deleted)</strong>, so the team can still see who did the work. ' +
+      'That history is part of the team\u2019s record and cannot be removed.</p>';
+  }
+  setTimeout(() => el('da-pass').focus(), 60);
+}
+
+function closeDeleteAccount() { closeModalById('modal-delete-account'); }
+
+async function deleteAccount() {
+  const pass = el('da-pass').value;
+  clearErr('da-err');
+  if (!pass) { showErr('da-err', 'Enter your password to confirm.'); el('da-pass').focus(); return; }
+
+  busy('da-btn', true, 'Deleting…');
+  const res = await api('auth', 'delete_account', { password: pass });
+  busy('da-btn', false);
+
+  if (!res.success) { showErr('da-err', res.message); el('da-pass').select(); return; }
+
+  window.location.href = 'login.html?deleted=1';
+}
+
 // ── LOAD ──────────────────────────────────────────────────
 let hasTeams = false;
 let isOwner  = false;
@@ -185,6 +250,13 @@ function escapeHtml(s) {
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
   ));
 }
+
+// Enter in the confirmation field submits, as it does on every other
+// auth screen. Bound once at parse time; the field is always present.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  if (e.target && e.target.id === 'da-pass') { e.preventDefault(); deleteAccount(); }
+});
 
 load();
 

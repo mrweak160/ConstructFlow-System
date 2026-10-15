@@ -673,7 +673,21 @@ function saNext() {
 
   clearErr('sa-err-1');
   if (!first || !last)    { showErr('sa-err-1', 'Enter your first and last name.'); return; }
+  // Mirror the server's rules here, where the fields actually are. Without
+  // this a one-character name passes step 1 and only fails on submit, so the
+  // error appeared under the password box instead of next to the name.
+  if (first.length < 2 || last.length < 2) {
+    showErr('sa-err-1', 'First and last name must be at least 2 characters.');
+    el(first.length < 2 ? 'sa-first' : 'sa-last').focus(); return;
+  }
+  if (first.length > 60 || last.length > 60) {
+    showErr('sa-err-1', 'Names are too long (60 characters max each).');
+    el(first.length > 60 ? 'sa-first' : 'sa-last').focus(); return;
+  }
   if (!birth)             { showErr('sa-err-1', 'Enter your birthdate.'); el('sa-birth').focus(); return; }
+  if (birth >= new Date().toISOString().slice(0, 10)) {
+    showErr('sa-err-1', 'Birthdate must be in the past.'); el('sa-birth').focus(); return;
+  }
   if (!gender)            { showErr('sa-err-1', 'Select a gender option.'); el('sa-gender').focus(); return; }
   if (address.length < 5) { showErr('sa-err-1', 'Enter your address.'); el('sa-address').focus(); return; }
 
@@ -710,6 +724,15 @@ async function saComplete() {
   if (!res.success) {
     // The address gained an account while this page was open.
     if (res.data && res.data.existing_account) { saPane('known'); return; }
+    // Every detail field lives on step 1, but the whole payload is only sent
+    // from step 2, so a complaint about one of them has to be shown back on
+    // step 1 or the user is told to fix something they cannot see.
+    if (/\b(name|names|birthdate|gender|address)\b/i.test(res.message)) {
+      clearErr('sa-err-2');
+      gotoStep('sa', 1);
+      showErr('sa-err-1', res.message);
+      return;
+    }
     showErr('sa-err-2', res.message);
     return;
   }
@@ -743,6 +766,7 @@ initCodeInput('ct-code');
   const q = new URLSearchParams(window.location.search);
   if (q.get('created')) banner('Your team is ready. Log in to invite your crew.', 'ok');
   if (q.get('joined'))  banner("You're all set. Log in to get started.", 'ok');
+  if (q.get('deleted')) banner('Your account has been deleted.', 'ok');
 })();
 
 (function loginClaimInvite() {

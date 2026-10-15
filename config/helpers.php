@@ -73,6 +73,69 @@ function requireAuth(): array {
 }
 
 // ── TEAM MEMBERSHIP ──────────────────────────────────────────
+/**
+ * The byte GROUP_CONCAT joins name lists with, chosen because it cannot
+ * occur inside a person's name. ASCII 31, the unit separator.
+ */
+const NAME_GLUE = "\x1F";
+
+/**
+ * Appends "(removed)" to the name of anyone who is no longer on this team.
+ *
+ * Removal is per-team but a name is global: the same person may still be
+ * working in another team, may be re-invited to this one, and can still
+ * log in. So the marker is decided when records are read and never
+ * written into Users.name — the mistake would be invisible until someone
+ * in a second team saw a colleague labelled as gone.
+ *
+ * Safe to apply everywhere because records belong to the team: every
+ * listing is already scoped by team_id, so this only ever labels people
+ * inside the team whose records are being looked at.
+ *
+ * $pairs maps an id column to the name column it belongs to, e.g.
+ * ['assigned_to' => 'assigned_to_name']. A joined pair such as
+ * ['crew_ids' => 'crew_names'] is marked position by position; both
+ * GROUP_CONCATs carry the same ORDER BY, so the lists line up.
+ *
+ * Those name lists are joined on NAME_GLUE rather than on ", ". A comma is
+ * legal inside a name — "Santos, Jr." is ordinary here — and splitting on
+ * one produced more fragments than there were ids, which shifted every
+ * later name onto the wrong id and marked the wrong person as removed.
+ * This function is what turns the glue back into the ", " the UI shows, so
+ * it has to run over every row whether or not anyone has actually left.
+ */
+function markFormerMembers(array $rows, int $teamId, array $pairs): array {
+    if (!$rows) return $rows;
+
+    $st = getDB()->prepare('SELECT user_id FROM TeamMembers WHERE team_id = ? AND status = "removed"');
+    $st->execute([$teamId]);
+    $gone = array_flip(array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)));
+
+    foreach ($rows as &$row) {
+        foreach ($pairs as $idCol => $nameCol) {
+            if (!isset($row[$idCol], $row[$nameCol])) continue;
+            if ($row[$idCol] === null || $row[$nameCol] === '') continue;
+
+            $ids   = explode(',', (string)$row[$idCol]);
+            $names = explode(NAME_GLUE, (string)$row[$nameCol]);
+            foreach ($ids as $i => $id) {
+                if (isset($names[$i]) && isset($gone[(int)$id])) {
+                    $names[$i] .= ' (removed)';
+                }
+            }
+            $row[$nameCol] = implode(', ', $names);
+        }
+    }
+    unset($row);
+    return $rows;
+}
+
+/** Single-row convenience wrapper around markFormerMembers(). */
+function markFormerMember(?array $row, int $teamId, array $pairs): ?array {
+    if (!$row) return $row;
+    return markFormerMembers([$row], $teamId, $pairs)[0];
+}
+
 function userMemberships(int $userId): array {
     $stmt = getDB()->prepare(
         'SELECT tm.team_id, tm.role, tm.status, t.name AS team_name, t.owner_id
@@ -307,7 +370,15 @@ function hashCode(string $code): string {
 
 function checkCode(array $row, string $submitted): string {
     // 'ok' | 'expired' | 'locked' | 'wrong'
-    if (strtotime($row['expires_at']) < time()) {
+    //
+    // expires_at was written by MySQL's NOW(), so it is measured against
+    // MySQL's NOW(). PHP's date.timezone and the database server's timezone
+    // are set independently, and any gap between them quietly lengthens or
+    // shortens every verification and password-reset code by that amount.
+    // The caller's row is reused as-is, so no SELECT elsewhere has to change.
+    $exp = getDB()->prepare('SELECT CAST(? AS DATETIME) < NOW()');
+    $exp->execute([$row['expires_at']]);
+    if ((int)$exp->fetchColumn() === 1) {
         return 'expired';
     }
     if ((int)$row['attempts'] >= CODE_MAX_ATTEMPTS) {
@@ -356,9 +427,9 @@ function nameIsLongEnough(string $name): bool {
 function logActivity(
     ?int $userId,
     string $action,
-    string $targetType = null,
-    int $targetId = null,
-    string $description = null,
+    ?string $targetType = null,
+    ?int $targetId = null,
+    ?string $description = null,
     ?int $teamId = null
 ): void {
     try {
@@ -397,6 +468,17 @@ function generateTaskCode(int $teamId): string {
 
 function generateWOCode(int $teamId): string {
     return nextCode('WorkOrders', 'wo_code', 'WO', $teamId);
+}
+
+/**
+ * True when an insert failed only because another request took the same
+ * REP-/TASK-/WO- number first. nextCode() reads MAX()+1, so two requests in
+ * the same instant can compute the same code; the unique key rejects the
+ * second, and the caller takes the next number and tries again.
+ */
+function isDuplicateCode(PDOException $e): bool {
+    return $e->getCode() === '23000'
+        && preg_match('/uq_(report|task|wo)_code/', $e->getMessage()) === 1;
 }
 
 // ── INPUT ────────────────────────────────────────────────────

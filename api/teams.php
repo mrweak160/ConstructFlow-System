@@ -19,6 +19,31 @@ function assignableBy(string $actorRole): array {
     };
 }
 
+/**
+ * Stops an inspector leaving, or losing the role, while work is still
+ * waiting on them: a task they have not inspected, or a site verification
+ * they were named for. Only they could file that report or sign that
+ * check, so either would be stranded. A supervisor reassigns them first.
+ */
+function assertNoOpenInspection(int $teamId, int $userId, string $name, string $doing): void {
+    $db = getDB();
+    $t  = $db->prepare('SELECT COUNT(*) FROM InspectionTasks WHERE team_id = ? AND assigned_to = ? AND status = "assigned"');
+    $t->execute([$teamId, $userId]);
+    $tasks = (int)$t->fetchColumn();
+    $v  = $db->prepare('SELECT COUNT(*) FROM WorkOrders WHERE team_id = ? AND verify_inspector_id = ? AND status = "pending_inspector"');
+    $v->execute([$teamId, $userId]);
+    $checks = (int)$v->fetchColumn();
+    if (!$tasks && !$checks) return;
+
+    $parts = [];
+    if ($tasks)  $parts[] = "$tasks open inspection task" . ($tasks === 1 ? '' : 's');
+    if ($checks) $parts[] = "$checks site verification" . ($checks === 1 ? '' : 's');
+    json_response(false,
+        "$name still has " . implode(' and ', $parts) . '. Have a supervisor reassign '
+        . ($tasks + $checks === 1 ? 'it' : 'them') . " before $doing.",
+        ['open_tasks' => $tasks, 'open_verifications' => $checks], 409);
+}
+
 // ── POST ?action=create ──────────────────────────────────────
 // Body: { name, description }
 //
@@ -121,14 +146,21 @@ if ($method === 'POST' && $action === 'invite') {
         }
     }
     
+    // "Was it just sent?" is computed by MySQL rather than by PHP. The two
+    // clocks are not guaranteed to agree — PHP reads date.timezone while
+    // MySQL reads the server's own — and measuring a MySQL datetime against
+    // PHP's time() throttles every invitation for the size of that gap. On
+    // this machine the gap is six hours, which blocked re-inviting anyone.
     $live = $db->prepare(
-        'SELECT invitation_id, last_sent_at, resend_count FROM Invitations
-         WHERE team_id = ? AND email = ? AND accepted_at IS NULL AND revoked_at IS NULL
-         ORDER BY invitation_id DESC LIMIT 1'
+        'SELECT invitation_id, resend_count,
+                (last_sent_at > DATE_SUB(NOW(), INTERVAL ' . INVITE_RESEND_SECONDS . ' SECOND)) AS too_soon
+           FROM Invitations
+          WHERE team_id = ? AND email = ? AND accepted_at IS NULL AND revoked_at IS NULL
+          ORDER BY invitation_id DESC LIMIT 1'
     );
     $live->execute([$m['team_id'], $email]);
     if ($old = $live->fetch()) {
-        if (strtotime($old['last_sent_at']) > time() - INVITE_RESEND_SECONDS) {
+        if ((int)$old['too_soon'] === 1) {
             json_response(false, 'An invitation was just sent to that address. Wait a minute before sending another.', [], 429);
         }
         $db->prepare('UPDATE Invitations SET revoked_at = NOW() WHERE invitation_id = ?')
@@ -176,6 +208,7 @@ if ($method === 'GET' && $action === 'invites') {
 
     $stmt = $db->prepare(
         'SELECT i.invitation_id, i.email, i.role, i.created_at, i.expires_at,
+                i.last_sent_at,
                 (i.expires_at <= NOW()) AS is_expired,
                 u.name AS invited_by_name
          FROM Invitations i
@@ -200,9 +233,11 @@ if ($method === 'POST' && $action === 'resend_invite') {
 
     $db   = getDB();
     $stmt = $db->prepare(
-        'SELECT * FROM Invitations
-         WHERE invitation_id = ? AND team_id = ? AND accepted_at IS NULL AND revoked_at IS NULL
-         LIMIT 1'
+        'SELECT *,
+                (last_sent_at > DATE_SUB(NOW(), INTERVAL ' . INVITE_RESEND_SECONDS . ' SECOND)) AS too_soon
+           FROM Invitations
+          WHERE invitation_id = ? AND team_id = ? AND accepted_at IS NULL AND revoked_at IS NULL
+          LIMIT 1'
     );
     $stmt->execute([$id, $m['team_id']]);
     $inv = $stmt->fetch();
@@ -210,7 +245,9 @@ if ($method === 'POST' && $action === 'resend_invite') {
     if (!$inv) {
         json_response(false, 'That invitation no longer exists.', [], 404);
     }
-    if (strtotime($inv['last_sent_at']) > time() - INVITE_RESEND_SECONDS) {
+    // Same reasoning as the duplicate-invite guard above: MySQL compares its
+    // own clock, so the throttle is sixty seconds wherever this is deployed.
+    if ((int)$inv['too_soon'] === 1) {
         json_response(false, 'That invitation was just sent. Wait a minute before resending.', [], 429);
     }
     if ((int)$inv['resend_count'] >= INVITE_MAX_RESENDS) {
@@ -272,12 +309,6 @@ if ($method === 'POST' && $action === 'revoke_invite') {
         "{$actor['name']} revoked the invitation to $email.");
 
     json_response(true, "Invitation to $email cancelled. The link no longer works.");
-}
-
-// ── GET ?action=my_teams ─────────────────────────────────────
-if ($method === 'GET' && $action === 'my_teams') {
-    $user = requireAuth();
-    json_response(true, 'Teams retrieved.', ['teams' => userMemberships($user['user_id'])]);
 }
 
 // ── GET ?action=detail ───────────────────────────────────────
@@ -372,8 +403,10 @@ if ($method === 'POST' && $action === 'assign_role') {
     assertNotLastAdmin((int)$m['team_id'], $userId);
 
 
-    $open = $db->prepare("SELECT COUNT(*) FROM WorkOrders WHERE assigned_to = ? AND status <> 'completed'");
-    $open->execute([$userId]);
+    // This team's work only: someone on two teams is not held back here by
+    // a job in the other one.
+    $open = $db->prepare("SELECT COUNT(*) FROM WorkOrders w WHERE w.team_id = ? AND w.status <> 'completed' AND w.wo_id IN (SELECT wo_id FROM WorkOrderAssignees WHERE user_id = ?)");
+    $open->execute([$m['team_id'], $userId]);
     $openCount = (int)$open->fetchColumn();
 
     if ($openCount > 0 && $target['member_role'] === 'field_worker') {
@@ -381,6 +414,9 @@ if ($method === 'POST' && $action === 'assign_role') {
             "{$target['name']} still has $openCount unfinished work order" . ($openCount === 1 ? '' : 's') .
             '. Have a supervisor reassign them before changing this role.',
             ['open_work_orders' => $openCount], 409);
+    }
+    if ($target['member_role'] === 'field_inspector') {
+        assertNoOpenInspection((int)$m['team_id'], $userId, $target['name'], 'changing this role');
     }
 
     $db->prepare(
@@ -426,9 +462,11 @@ if ($method === 'POST' && $action === 'remove_member') {
     assertNotLastAdmin((int)$m['team_id'], $userId);
 
     $open = $db->prepare(
-        "SELECT COUNT(*) FROM WorkOrders WHERE assigned_to = ? AND status <> 'completed'"
+        "SELECT COUNT(*) FROM WorkOrders w
+          WHERE w.team_id = ? AND w.status <> 'completed'
+            AND w.wo_id IN (SELECT wo_id FROM WorkOrderAssignees WHERE user_id = ?)"
     );
-    $open->execute([$userId]);
+    $open->execute([$m['team_id'], $userId]);
     $openCount = (int)$open->fetchColumn();
 
     if ($openCount > 0) {
@@ -436,6 +474,7 @@ if ($method === 'POST' && $action === 'remove_member') {
             "{$target['name']} still has $openCount unfinished work order" . ($openCount === 1 ? '' : 's') .
             '. Reassign them first, then remove this member.', ['open_work_orders' => $openCount], 409);
     }
+    assertNoOpenInspection((int)$m['team_id'], $userId, $target['name'], 'removing this member');
 
     $db->prepare('UPDATE TeamMembers SET status = "removed" WHERE team_id = ? AND user_id = ?')
        ->execute([$m['team_id'], $userId]);

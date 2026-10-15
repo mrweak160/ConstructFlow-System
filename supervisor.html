@@ -6,7 +6,6 @@
 <meta name="theme-color" content="#f59e0b"/>
 <link rel="manifest" href="manifest.json"/>
 <title>ConstructFlow — Supervisor Portal</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="style.css"/>
 <link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
 <link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
@@ -19,7 +18,7 @@
   <div class="dash">
     <div class="sidebar-overlay" onclick="closeSidebar()"></div>
     <aside class="sidebar">
-      <div class="sidebar-logo"><div class="logo-badge"><img src="logo/logo.svg" alt="ConstructFlow"/></div><div class="logo-name">CONSTRUCTFLOW</div></div>
+      <div class="sidebar-logo"><div class="logo-badge"><img src="logo/logo.png" alt="ConstructFlow"/></div><div class="logo-name">CONSTRUCTFLOW</div></div>
       <div class="sidebar-user">
         <div class="avatar av-blue" id="sup-av">&mdash;</div>
         <div class="user-info"><div class="uname" id="sup-uname">&mdash;</div><div class="urole">Supervisor</div></div>
@@ -32,12 +31,21 @@
         <div class="nav-item" id="sup-nav-rep" onclick="switchView('supervisor','reports')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Reports &amp; Monitoring
         </div>
-        <div class="nav-item" id="sup-nav-wo" onclick="switchView('supervisor','workorders')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Work Orders
+        <div class="nav-item" id="sup-nav-workload" onclick="switchView('supervisor','workload')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Crew Workload
         </div>
+        <div class="nav-label">Coordination</div>
         <div class="nav-item" id="sup-nav-tasks" onclick="switchView('supervisor','tasks')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           Inspection Tasks
+        </div>
+        <div class="nav-item" id="sup-nav-wo" onclick="switchView('supervisor','workorders')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Work Orders
+        </div>
+        <div class="nav-item" id="sup-nav-verify" onclick="switchView('supervisor','verify')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          For Verification
         </div>
       </nav>
       <div class="sidebar-signout">
@@ -80,27 +88,34 @@
         <!-- DASHBOARD -->
         <div class="view active" id="sup-dashboard">
           <div class="page-header"><div><h1>Coordination Hub</h1><p>Review incoming reports and coordinate work order assignments.</p></div></div>
-          <div class="stats-grid">
-            <div class="stat-card"><div class="stat-label">Total Reports</div><div class="stat-value" id="sup-stat-total">0</div></div>
-            <div class="stat-card"><div class="stat-label">Pending Review</div><div class="stat-value amber" id="sup-stat-pend">0</div></div>
-            <div class="stat-card"><div class="stat-label">Active Work Orders</div><div class="stat-value blue" id="sup-stat-wo">0</div></div>
-            <div class="stat-card"><div class="stat-label">High / Critical</div><div class="stat-value red" id="sup-stat-crit">0</div></div>
+          <div class="summary-card">
+            <div class="stats-panel">
+            <div class="stat-cell"><div class="stat-label">Total Reports</div><div class="stat-value" id="sup-stat-total">0</div></div>
+            <div class="stat-cell"><div class="stat-label">Pending Review</div><div class="stat-value amber" id="sup-stat-pend">0</div></div>
+            <div class="stat-cell"><div class="stat-label">Active Work Orders</div><div class="stat-value blue" id="sup-stat-wo">0</div></div>
+            <div class="stat-cell"><div class="stat-label">High / Critical</div><div class="stat-value red" id="sup-stat-crit">0</div></div>
           </div>
-          <div class="two-col">
-            <div>
-              <div class="section-header"><div class="section-title">Pending Inspection Review</div><button class="btn btn-sm btn-dark" onclick="switchView('supervisor','reports')">View All</button></div>
-              <div id="sup-pending-list"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><p>No pending reports</p></div></div>
-            </div>
-            <div>
-              <div class="widget">
-                <div class="widget-header"><div class="widget-title">Work Order Status</div></div>
-                <div class="wo-list">
-                  <div class="wo-row"><span><span class="dot dot-amber" style="display:inline-block;margin-right:7px"></span>Assigned</span><span class="count" id="sup-wo-assigned">0</span></div>
-                  <div class="wo-row"><span><span class="dot dot-blue" style="display:inline-block;margin-right:7px"></span>In Progress</span><span class="count" id="sup-wo-inprog">0</span></div>
-                  <div class="wo-row"><span><span class="dot dot-green" style="display:inline-block;margin-right:7px"></span>Completed</span><span class="count" id="sup-wo-done">0</span></div>
-                </div>
+          <div class="widget">
+            <div class="widget-header">
+              <div>
+                <div class="widget-title">Work order status</div>
               </div>
             </div>
+            <div class="wo-list">
+              <div class="wo-row"><span class="dot dot-amber"></span><span>Assigned</span><span class="count" id="sup-wo-assigned">0</span></div>
+              <div class="wo-row"><span class="dot dot-blue"></span><span>In Progress</span><span class="count" id="sup-wo-inprog">0</span></div>
+              <div class="wo-row"><span class="dot dot-green"></span><span>Completed</span><span class="count" id="sup-wo-done">0</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="widget">
+            <div class="widget-header">
+              <div>
+                <div class="widget-title">Pending inspection review</div>
+              </div>
+              <div class="widget-head-actions"><button class="btn btn-sm btn-dark" onclick="switchView('supervisor','reports')">View all</button></div>
+            </div>
+            <div id="sup-pending-list"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><p>No pending reports</p></div></div>
           </div>
         </div>
         <!-- REPORTS VIEW -->
@@ -113,7 +128,7 @@
             <button class="filter-btn" onclick="filterSupervisorReports(this,'completed')">Completed</button>
           </div>
           <div class="table-wrap">
-            <table><thead><tr><th>ID</th><th>Issue</th><th>Inspector</th><th>Severity</th><th>Submitted</th><th>Status</th><th>Action</th></tr></thead>
+            <table><thead><tr><th>ID</th><th>Issue</th><th>Inspector</th><th>Severity</th><th>Submitted</th><th>Status</th></tr></thead>
             <tbody id="sup-rep-table"></tbody></table>
           </div>
           <div class="mobile-card-list" id="sup-rep-cards"></div>
@@ -122,21 +137,70 @@
         <div class="view" id="sup-workorders">
           <div class="page-header"><div><h1>Work Orders</h1><p>All generated work orders and their progress.</p></div></div>
           <div class="table-wrap">
-            <table><thead><tr><th>WO #</th><th>Issue</th><th>Assigned To</th><th>Priority</th><th>Created</th><th>Status</th><th>Action</th></tr></thead>
+            <table><thead><tr><th>WO #</th><th>Issue</th><th>Assigned To</th><th>Priority</th><th>Created</th><th>Status</th></tr></thead>
             <tbody id="sup-wo-table"></tbody></table>
           </div>
           <div class="mobile-card-list" id="sup-wo-cards"></div>
         </div>
+        <!-- WORKLOAD -->
+        <div class="view" id="sup-workload">
+          <div class="page-header">
+            <div><h1>Crew Workload</h1><p>Who has finished what, over a period you choose.</p></div>
+          </div>
+          <div class="filter-bar">
+            <div class="fb-field">
+              <label>Period</label>
+              <select class="form-control" id="sw-wl-range" onchange="wlRangePreset('sw',this.value)">
+                <option value="30">Last 30 days</option>
+                <option value="month">This month</option>
+                <option value="90">Last 90 days</option>
+                <option value="all">All time</option>
+                <option value="custom">Custom dates&hellip;</option>
+              </select>
+            </div>
+            <!-- Only for "Custom dates". A preset fills these and applies
+                 itself, so leaving them on screen offered a second way to
+                 say the same thing. -->
+            <div class="fb-dates fb-hide" id="sw-wl-dates">
+              <div class="fb-field"><label>From</label><input type="date" class="form-control" id="sw-wl-from"/></div>
+              <div class="fb-field"><label>To</label><input type="date" class="form-control" id="sw-wl-to"/></div>
+              <button class="btn btn-amber" onclick="wlLoad('sw')">Apply</button>
+            </div>
+            <div class="fb-field">
+              <label>Rank by</label>
+              <div class="reports-filter" style="margin:0">
+                <button class="filter-btn active" id="sw-wl-mode-weighted" onclick="wlSetMode('sw','weighted')">Weighted</button>
+                <button class="filter-btn" id="sw-wl-mode-count" onclick="wlSetMode('sw','count')">Count</button>
+              </div>
+            </div>
+            <div class="fb-actions">
+              <button class="btn btn-dark" onclick="wlPrint('sw')">Print / Save as PDF</button>
+            </div>
+          </div>
+          <div id="sw-wl-body"></div>
+        </div>
+
+        <!-- VERIFICATION VIEW -->
+        <div class="view" id="sup-verify">
+          <div class="page-header"><div><h1>For Verification</h1><p>Work orders the field worker has marked done.</p></div></div>
+          <div class="widget">
+            <div id="sup-verify-list"></div>
+          </div>
+        </div>
         <!-- TASK VIEW -->
           <div class="view" id="sup-tasks">
-          <div class="view-header">
-            <div><h2>Inspection Tasks</h2><p>Create and assign inspection tasks to Field Inspectors.</p></div>
-            <button class="btn btn-amber" onclick="openCreateTask()">+ Create Task</button>
+          <div class="page-header">
+            <div><h1>Inspection Tasks</h1><p>Create and assign inspection tasks to Field Inspectors.</p></div>
+            <div class="ph-actions">
+              <button class="btn btn-amber" onclick="openCreateTask()">Create task</button>
+            </div>
           </div>
-          <table  >
-            <thead><tr><th>Code</th><th>Title</th><th>Inspector</th><th>Location</th><th>Status</th><th>Due</th><th>Action</th></tr></thead>
-            <tbody id="sup-tasks-table"></tbody>
-          </table>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Code</th><th>Title</th><th>Inspector</th><th>Location</th><th>Status</th><th>Due</th></tr></thead>
+              <tbody id="sup-tasks-table"></tbody>
+            </table>
+          </div>
           <div class="mobile-card-list" id="sup-tasks-cards"></div>
         </div>
       </div>
@@ -160,13 +224,34 @@
       <div class="form-group"><label>Task Title <span>*</span></label><input class="form-control" id="ct-title" placeholder="e.g. Weekly Structural Check – Sector B"/></div>
       <div class="form-group"><label>Description</label><textarea class="form-control" id="ct-desc" placeholder="Optional instructions for the inspector..."></textarea></div>
       <div class="form-row">
-        <div class="form-group"><label>Location <span>*</span></label><input class="form-control" id="ct-loc" placeholder="e.g. Building 4, Sector B"/></div>
-        <div class="form-group"><label>Due Date</label><input type="date" class="form-control" id="ct-due"/></div>
+      <div class="form-group"><label>Location <span>*</span></label>
+        <input class="form-control" id="ct-loc" placeholder="Province, Municipality, Barangay"/>
+      </div>
+      <div class="form-group"><label>Due Date</label><input type="date" class="form-control" id="ct-due"/></div>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-dark" onclick="closeModal('modal-create-task')">Cancel</button>
       <button class="btn btn-amber" onclick="createTask()">Create & Assign Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reassign an inspector: an uninspected task, or a pending site check -->
+<div class="overlay overlay-compact" id="modal-pick-inspector">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2 id="pi-title">Reassign Inspector</h2><p id="pi-sub"></p></div>
+      <button class="btn-close" onclick="closeModal('modal-pick-inspector')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:0"><label>Field Inspector <span>*</span></label>
+        <select class="form-control" id="pi-select"><option value="">Select field inspector...</option></select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-pick-inspector')">Cancel</button>
+      <button class="btn btn-amber" onclick="submitPickInspector()">Reassign</button>
     </div>
   </div>
 </div>
@@ -181,40 +266,70 @@
     <div class="modal-body" id="rd-body"></div>
     <div class="modal-footer">
       <button class="btn btn-dark" onclick="closeModal('modal-report-detail')">Close</button>
+      <!-- Filled by setDetailActions(): whatever the row that opened this
+           detail says the record allows. -->
+      <span id="rd-actions"></span>
+      <!-- One PDF per defect: the case file, which already carries the task,
+           the finding, the engine's reasoning and the repair. Amber because
+           it is now the only action on this footer besides Close. -->
+      <button class="btn btn-amber" data-print-btn="case" style="display:none" onclick="openPrint('case')">Save as PDF</button>
     </div>
   </div>
 </div>
 
 <!-- Assign Work Order (Supervisor) -->
 <div class="overlay" id="modal-assign">
-  <div class="modal">
+  <div class="modal" style="max-width:720px">
     <div class="modal-header">
-      <div><h2>Assign Work Order</h2><p>Create and assign a work order for this inspection report.</p></div>
+      <div><h2>Assign Work Order</h2><p id="a-report-sub">&mdash;</p></div>
       <button class="btn-close" onclick="closeModal('modal-assign')">×</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="a-report-id"/>
-      <div class="form-group"><label>Report</label><input class="form-control" id="a-report-title" disabled/></div>
-      <div class="form-group"><label>Issue Location</label><input class="form-control" id="a-loc" disabled/></div>
-      <div class="form-group"><label>Severity</label><input class="form-control" id="a-sev" disabled/></div>
-      <div class="form-group"><label>Override Severity</label>
-        <select class="form-control" id="a-sev-override">
-          <option value="">Keep original severity</option>
-          <option value="low">Low</option><option value="moderate">Moderate</option>
-          <option value="high">High</option><option value="critical">Critical</option>
-        </select>
-        <div class="form-hint">Supervisors may reclassify severity based on field verification.</div>
+
+      <!-- What the inspector found. Read-only context for the decision. -->
+      <div class="assign-panel">
+        <div class="assign-panel-head">Inspection Report</div>
+        <div class="detail-row"><span class="detail-label">Filed by</span><span class="detail-value" id="a-reporter">&mdash;</span></div>
+        <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value" id="a-address">&mdash;</span></div>
+        <div class="detail-row"><span class="detail-label">GPS</span><span class="detail-value" id="a-gps">&mdash;</span></div>
+        <div class="detail-row"><span class="detail-label">Type</span><span class="detail-value" id="a-type">&mdash;</span></div>
+        <div style="padding:10px 0 2px">
+          <div class="detail-label" style="margin-bottom:5px">Inspector's description</div>
+          <div id="a-desc" style="font-size:13px;color:var(--label);line-height:1.65"></div>
+        </div>
+        <div id="a-photos" class="photo-preview" style="margin-top:10px"></div>
       </div>
-      <div class="form-group"><label>Assign To (Field Worker) <span style="color:var(--red)">*</span></label>
-        <select class="form-control" id="a-worker">
-          <option value="">Select field worker...</option>
-          <option value="Dave Mechanic">Dave Mechanic</option>
-          <option value="Jose Reyes">Jose Reyes</option>
-          <option value="Maria Santos">Maria Santos</option>
-        </select>
+
+      <div class="form-row cols-3">
+        <div class="form-group"><label>Engine severity</label>
+          <input type="hidden" id="a-sev"/>
+          <div class="sev-readout" id="a-sev-view">&mdash;</div>
+        </div>
+        <div class="form-group"><label>Override</label>
+          <select class="form-control" id="a-sev-override" onchange="crewChanged()">
+            <option value="">Keep engine rating</option>
+            <option value="low">Low</option><option value="moderate">Moderate</option>
+            <option value="high">High</option><option value="critical">Critical</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Deadline</label>
+          <input class="form-control" type="date" id="a-deadline"/>
+        </div>
       </div>
-      <div class="form-group"><label>Work Instructions</label><textarea class="form-control" id="a-instructions" placeholder="Describe the work to be done..."></textarea></div>
-      <div class="form-group"><label>Priority / Deadline</label><input class="form-control" type="date" id="a-deadline"/></div>
+
+      <div class="form-group">
+        <div class="crew-head">
+          <label>Crew <span>*</span></label><span class="info-wrap"><button type="button" class="info-btn" aria-expanded="false" aria-label="About the crew" onclick="toggleInfo(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-5"/><path d="M12 8h.01"/></svg></button><span class="info-pop" role="note" hidden><strong>Lead and support.</strong> The lead is the only crew member who can update the work order&rsquo;s status; support crew can view it but not edit it. High and critical work allows a crew of three, low and moderate two. Choose the lead first.</span></span>
+          <span class="crew-count" id="a-crew-hint"></span>
+        </div>
+        <div id="a-crew"></div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0"><label>Work Instructions</label>
+        <textarea class="form-control" id="a-instructions" placeholder="Describe the work to be done..."></textarea>
+      </div>
+      <input type="hidden" id="a-loc"/>
     </div>
     <div class="modal-footer">
       <button class="btn btn-dark" onclick="closeModal('modal-assign')">Cancel</button>
@@ -225,10 +340,10 @@
 
 <!-- Profile Modal -->
 <div class="overlay" id="modal-profile">
-  <div class="modal modal-sm">
+  <div class="modal">
     <div class="modal-header"><div><h2>My Profile</h2></div><button class="btn-close" onclick="closeModal('modal-profile')">×</button></div>
     <div class="modal-body">
-      <div style="text-align:center;margin-bottom:20px">
+      <div class="prof-head">
         <div class="avatar-wrap">
           <div class="avatar" id="prof-av" style="width:64px;height:64px;font-size:24px" onclick="viewAvatar()"></div>
           <button type="button" class="avatar-edit-badge" id="prof-photo-btn" style="display:none" title="Change photo" aria-label="Change photo" onclick="document.getElementById('prof-photo-inp').click()">
@@ -238,8 +353,8 @@
             </svg>
           </button>
         </div>
-        <div style="font-size:16px;font-weight:700;color:var(--text)" id="prof-name"></div>
-        <div style="font-size:12px;color:var(--muted)" id="prof-role"></div>
+        <div class="prof-head-name" id="prof-name"></div>
+        <div class="prof-head-role" id="prof-role"></div>
         <input type="file" id="prof-photo-inp" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="stageAvatar(this)"/>
         <button class="action-link" id="prof-photo-remove" style="color:var(--red);display:none;margin-top:10px" onclick="stageAvatarRemove()">Remove photo</button>
       </div>
@@ -262,21 +377,21 @@
       <!-- EDIT FORM — hidden until Edit Profile is pressed -->
       <div id="prof-edit" style="display:none">
         <div class="form-group"><label>Full Name</label><input class="form-control" id="prof-name-inp"/></div>
-        <div class="form-group">
-          <label>Email</label>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Email <span class="info-wrap"><button type="button" class="info-btn" aria-expanded="false" aria-label="About your email and role" onclick="toggleInfo(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-5"/><path d="M12 8h.01"/></svg></button><span class="info-pop" role="note" hidden>Your email identifies your account and cannot be changed here. Your role is set through team management, not from this form.</span></span></label>
           <input class="form-control" id="prof-email-inp" disabled/>
-          <p style="font-size:11.5px;color:var(--muted);margin-top:5px">
-            Your email identifies your account and cannot be changed here.
-          </p>
         </div>
-        <p style="font-size:11.5px;color:var(--muted);margin:-4px 0 14px">
-          Your role is set through team management, not from this form.
-        </p>
 
-        <div class="section-title">Change password</div>
-        <div class="form-group"><label>Current Password</label><input class="form-control" type="password" id="prof-curpass" placeholder="Required only if changing password"/></div>
-        <div class="form-group"><label>New Password</label><input class="form-control" type="password" id="prof-pass" placeholder="Leave blank to keep current"/></div>
-        <p style="font-size:11.5px;color:var(--muted)">Password must contain at least 8 characters, 1 uppercase letter, 1 lowercase letter, and 1 number.</p>
+        <!-- Changing a password is a separate job from editing a profile,
+             so it is set off behind a rule rather than reading as two more
+             profile fields. -->
+        <div class="prof-section">
+          <div class="section-title">Change password</div>
+          <p class="prof-section-note">Leave both boxes empty to keep your current password.</p>
+          <div class="form-group"><label>Current Password</label><input class="form-control" type="password" id="prof-curpass" placeholder="Required only if changing password"/></div>
+          <div class="form-group" style="margin-bottom:0"><label>New Password</label><input class="form-control" type="password" id="prof-pass" placeholder="Leave blank to keep current"/></div>
+          <p class="form-hint">At least 8 characters, with one uppercase letter, one lowercase letter and one number.</p>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -295,6 +410,80 @@
          style="width:256px;height:256px;max-width:80vw;max-height:80vw;border-radius:50%;
                 object-fit:cover;border:3px solid var(--card);display:block"/>
     <button class="lightbox-close" style="top:-8px;right:-8px" onclick="closeModal('modal-avatar')">×</button>
+  </div>
+</div>
+
+<!-- ══ VERIFY WORK ORDER MODAL ═══════════════════════════ -->
+<div class="overlay" id="modal-verify">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <div><h2 id="vf-title">Verify Work Order</h2><p id="vf-sub">&mdash;</p></div>
+      <button class="btn-close" onclick="closeModal('modal-verify')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="vf-wo-id"/>
+
+      <!-- Everything needed to judge the work, so no second tab is required. -->
+      <div class="assign-panel">
+        <div class="assign-panel-head">Work Order</div>
+        <div class="detail-row"><span class="detail-label">Severity</span><span class="detail-value" id="vf-sev">&mdash;</span></div>
+        <div class="detail-row"><span class="detail-label">Address</span><span class="detail-value" id="vf-address">&mdash;</span></div>
+        <div class="detail-row"><span class="detail-label">GPS</span><span class="detail-value" id="vf-gps">&mdash;</span></div>
+        <div class="detail-row"><span class="detail-label">Crew</span><span class="detail-value" id="vf-crew">&mdash;</span></div>
+        <div class="detail-row"><span class="detail-label">Deadline</span><span class="detail-value" id="vf-deadline">&mdash;</span></div>
+        <div style="padding:10px 0 2px">
+          <div class="detail-label" style="margin-bottom:5px">Inspector's original finding</div>
+          <div id="vf-report-desc" style="font-size:13px;color:var(--label);line-height:1.65"></div>
+        </div>
+        <div style="padding:8px 0 2px">
+          <div class="detail-label" style="margin-bottom:5px">Work instructions given</div>
+          <div id="vf-instructions" style="font-size:13px;color:var(--label);line-height:1.65"></div>
+        </div>
+      </div>
+
+      <div class="assign-panel">
+        <div class="assign-panel-head">Field Worker's Completion Report</div>
+        <div id="vf-worker-note" style="font-size:13px;color:var(--label);line-height:1.65"></div>
+        <div id="vf-photos" class="photo-preview" style="margin-top:10px"></div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group" id="vf-inspector-group">
+          <label>Inspector to verify on site <span style="color:var(--red)">*</span></label>
+          <select class="form-control" id="vf-inspector"><option value="">Select inspector...</option></select>
+          <div class="form-hint">Defaults to whoever filed the original report.</div>
+        </div>
+        <div class="form-group">
+          <label>Remarks</label>
+          <textarea class="form-control" id="vf-remarks" placeholder="Required when sending back for rework"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" style="color:var(--red)" onclick="submitVerify('reject')">Rework</button>
+      <button class="btn btn-amber" id="vf-approve-btn" onclick="submitVerify('approve')">Approve</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EDIT CREW MODAL ═══════════════════════════════════ -->
+<div class="overlay" id="modal-edit-crew">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div><h2>Edit Crew</h2><p id="ec-sub">&mdash;</p></div>
+      <button class="btn-close" onclick="closeModal('modal-edit-crew')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="ec-wo-id"/>
+      <div class="form-group"><label>Assign Crew <span style="color:var(--red)">*</span></label>
+        <div id="ec-crew"></div>
+        <div class="form-hint" id="ec-crew-hint"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-edit-crew')">Cancel</button>
+      <button class="btn btn-amber" onclick="submitEditCrew()">Save Crew</button>
+    </div>
   </div>
 </div>
 

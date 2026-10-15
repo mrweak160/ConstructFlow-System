@@ -6,7 +6,6 @@
 <meta name="theme-color" content="#f59e0b"/>
 <link rel="manifest" href="manifest.json"/>
 <title>ConstructFlow — Your teams</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="style.css"/>
 <link rel="stylesheet" href="style-auth.css"/>
 <link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
@@ -22,7 +21,7 @@
 
     <div class="team-head">
             <div class="team-mark">
-        <img src="logo/logo.svg" alt="ConstructFlow" style="width:32px;height:32px;display:block"/>
+        <img src="logo/logo.png" alt="ConstructFlow" style="width:32px;height:32px;display:block"/>
       </div>
       <h1 id="t-title">Welcome to ConstructFlow</h1>
       <p id="t-sub">Start a construction team, or join one you've been invited to.</p>
@@ -46,6 +45,10 @@
           the link arrives in your inbox and brings you straight in —
           there is nothing to do here in the meantime.
         </p>
+        <div class="team-danger">
+          <span>Not expecting an invitation?</span>
+          <button type="button" onclick="openDeleteAccount()">Delete my account</button>
+        </div>
       </div>
     </div>
 
@@ -93,6 +96,32 @@
       Signed in as <b id="t-who">…</b> · <button onclick="signOut()">Sign out</button>
     </div>
 
+  </div>
+</div>
+
+<!-- ── Delete account ──────────────────────────────────────
+     Offered only from the stranded pane. The copy is built from the
+     server's own record counts, so the person agrees to something
+     specific rather than to the word "delete". -->
+<div class="auth-overlay" id="modal-delete-account" role="dialog" aria-modal="true" aria-labelledby="da-heading">
+  <div class="auth-modal">
+    <div class="auth-modal-head">
+      <div>
+        <h2 id="da-heading">Delete your account?</h2>
+        <p>This cannot be undone.</p>
+      </div>
+      <button class="auth-x" type="button" onclick="closeDeleteAccount()" aria-label="Close">&times;</button>
+    </div>
+    <div class="auth-modal-body">
+      <div class="da-copy" id="da-what"><p>Checking what is linked to your account…</p></div>
+      <div class="auth-field">
+        <label for="da-pass">Confirm with your password <span>*</span></label>
+        <input class="auth-input" type="password" id="da-pass" autocomplete="current-password" placeholder="••••••••"/>
+      </div>
+      <div class="auth-err" id="da-err" role="alert"></div>
+      <button class="auth-btn auth-btn-danger" type="button" id="da-btn" onclick="deleteAccount()">Delete my account</button>
+      <button class="auth-btn-ghost" type="button" onclick="closeDeleteAccount()">Keep my account</button>
+    </div>
   </div>
 </div>
 

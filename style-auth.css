@@ -1,9 +1,24 @@
+/* Inter, self-hosted. One variable file covers 300-800.
+   Previously loaded from fonts.googleapis.com, which cost two extra
+   DNS+TLS round trips and blocked first render (~3s measured). */
+@font-face{
+  font-family:"Inter";
+  font-style:normal;
+  font-weight:300 800;
+  font-display:swap;
+  src:url("fonts/inter-variable-latin.woff2") format("woff2");
+  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
 /* ═══════════════════════════════════════════════════════
    ConstructFlow — Authentication styles
    Loaded by login.html and team.html, after style.css.
    ═══════════════════════════════════════════════════════ */
 
 :root{
+  /* Auth pages are light. This loads after style.css, so it overrides the
+     dashboard dark scheme and keeps their white inputs and date picker light. */
+  color-scheme:light;
   --auth-ink:#1a1a2e;
   --auth-page:#f1f4f8;
   --auth-line:#e5e7eb;
@@ -29,7 +44,13 @@
 .auth-link-muted b{color:var(--auth-ink)}
 .auth-link-muted:hover b{color:var(--auth-amber)}
 
-.auth-row-between{display:flex;justify-content:flex-end;margin-top:-6px}
+/* "between" means between: flex-end pushed both buttons together on the
+   right, and the negative margin dragged the row up over the button above it,
+   so "Back" sat on top of "Create account". */
+.auth-row-between{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:10px}
+/* When only one button is present the markup ships an empty <span> as the
+   second flex child, which keeps the single button on the left. */
+.auth-row-between > *:only-child{margin-left:auto}
 .auth-alt{margin-top:18px;font-size:12.5px;color:var(--auth-mute);text-align:center}
 
 /* Inline banner used for "account created", "password reset" etc. */
@@ -113,7 +134,6 @@
 }
 .auth-input:focus{border-color:var(--auth-ink);box-shadow:0 0 0 3px rgba(26,26,46,.08)}
 .auth-input:disabled{background:var(--auth-page);color:var(--auth-mute);cursor:not-allowed}
-.auth-input.invalid{border-color:var(--auth-red)}
 select.auth-input{cursor:pointer}
 
 .auth-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -176,15 +196,23 @@ select.auth-input{cursor:pointer}
 }
 .auth-sent-to b{color:var(--auth-ink);font-weight:600}
 
-.auth-resend{
+/* Two different shapes in the markup, both have to work:
+     login.html        <div class="auth-resend">Didn't get it? <button>…</button></div>
+     create-team.html  <button class="auth-resend">Resend code</button>
+   Only the wrapper form was styled before, so the standalone button kept the
+   browser default border and rendered as a grey box. */
+div.auth-resend{
   text-align:center;margin-top:14px;font-size:12.5px;color:var(--auth-mute);
 }
-.auth-resend button{
-  background:none;border:none;font-family:'Inter',sans-serif;font-size:12.5px;
-  font-weight:600;color:var(--auth-ink);cursor:pointer;text-decoration:underline;
-  text-underline-offset:2px;padding:0;
+.auth-resend button,
+button.auth-resend{
+  background:none;border:none;padding:0;
+  font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;
+  color:var(--auth-ink);cursor:pointer;
+  text-decoration:underline;text-underline-offset:2px;
 }
-.auth-resend button:disabled{color:var(--auth-mute);cursor:not-allowed;text-decoration:none}
+.auth-resend button:disabled,
+button.auth-resend:disabled{color:var(--auth-mute);cursor:not-allowed;text-decoration:none}
 
 /* ═══ PASSWORD RULES ═══
    Shown before submission, not after failure — the requirement is
@@ -268,7 +296,6 @@ select.auth-input{cursor:pointer}
 }
 .team-choice-icon svg{width:20px;height:20px}
 .tc-amber{background:rgba(245,158,11,.14);color:#b45309}
-.tc-ink{background:rgba(26,26,46,.08);color:var(--auth-ink)}
 .team-choice-text strong{display:block;font-size:14.5px;font-weight:700;color:var(--auth-ink);margin-bottom:3px}
 .team-choice-text span{font-size:12.5px;color:var(--auth-mute);line-height:1.5}
 
@@ -304,20 +331,6 @@ select.auth-input{cursor:pointer}
 /* The join code, shown once a team is created. */
 .team-code-panel{text-align:center;padding:6px 0 2px}
 .team-code-panel p{font-size:12.5px;color:var(--auth-mute);line-height:1.6;margin-bottom:14px}
-.team-code{
-  display:inline-flex;align-items:center;gap:12px;
-  background:var(--auth-ink);border-radius:12px;padding:16px 22px;margin-bottom:14px;
-}
-.team-code code{
-  font-family:ui-monospace,'SF Mono',Menlo,monospace;
-  font-size:26px;font-weight:700;letter-spacing:7px;color:var(--auth-amber);
-}
-.team-code button{
-  background:rgba(255,255,255,.12);border:none;color:#fff;
-  border-radius:7px;padding:7px 11px;font-size:11.5px;font-weight:600;
-  font-family:'Inter',sans-serif;cursor:pointer;transition:background .18s;
-}
-.team-code button:hover{background:rgba(255,255,255,.22)}
 
 .team-back{
   background:none;border:none;color:var(--auth-mute);font-family:'Inter',sans-serif;
@@ -332,16 +345,28 @@ select.auth-input{cursor:pointer}
 }
 .team-foot button:hover{color:var(--auth-red)}
 
-/* Join-code entry reuses the segmented look, sized for 8 characters. */
-.team-code-input{display:flex;gap:6px;justify-content:space-between;margin:4px 0 6px}
-.team-code-input input{
-  width:100%;aspect-ratio:1/1;min-width:0;text-align:center;
-  font-size:16px;font-weight:700;font-family:ui-monospace,'SF Mono',Menlo,monospace;
-  text-transform:uppercase;color:var(--auth-ink);background:var(--auth-page);
-  border:1.5px solid var(--auth-line);border-radius:9px;outline:none;
-  transition:border-color .15s,background .15s;-webkit-appearance:none;
+/* ═══ DELETE ACCOUNT ═══
+   Offered only to someone with nowhere to go. Set below a rule and in
+   muted type: it is a way out, not a call to action, and it sits next
+   to copy telling them to wait for an invitation. */
+.team-danger{
+  margin-top:16px;padding-top:14px;border-top:1px solid var(--auth-line);
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px;
+  font-size:12.5px;color:var(--auth-mute);
 }
-.team-code-input input:focus{border-color:var(--auth-ink);background:#fff;box-shadow:0 0 0 3px rgba(26,26,46,.08)}
-.team-code-input input.filled{background:#fff;border-color:var(--auth-ink)}
-.team-code-input.shake{animation:auth-shake .32s}
-.team-code-input.shake input{border-color:var(--auth-red)}
+.team-danger button{
+  background:none;border:none;padding:0;color:var(--auth-mute);
+  font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;
+  text-decoration:underline;text-underline-offset:2px;cursor:pointer;transition:color .18s;
+}
+.team-danger button:hover{color:var(--auth-red)}
+
+/* The one destructive button in the product, so it is the one place
+   the red is load-bearing rather than decorative. */
+.auth-btn-danger{background:var(--auth-red)}
+.auth-btn-danger:hover:not(:disabled){background:#dc2626}
+
+.da-copy{font-size:13px;line-height:1.6;color:var(--auth-mute);margin-bottom:16px}
+.da-copy p+p{margin-top:10px}
+
+/* Join-code entry reuses the segmented look, sized for 8 characters. */

@@ -9,7 +9,7 @@ $action = $_GET['action'] ?? '';
 // Only actions reached from an already-authenticated page can carry a token.
 // login / register_* / forgot_* / invite_accept run before a session exists,
 // and logout sends no headers, so they are deliberately excluded.
-if ($method === 'POST' && in_array($action, ['change_password', 'switch_team', 'invite_claim'], true)) {
+if ($method === 'POST' && in_array($action, ['change_password', 'switch_team', 'invite_claim', 'delete_account'], true)) {
     verifyCsrf();
 }
 
@@ -73,10 +73,18 @@ if ($method === 'POST' && $action === 'register_start') {
     $fullName   = $firstName . ' ' . $lastName;
 
     // Resend cooldown: look at any existing pending registration for this email before overwriting it.
-    $existing = $db->prepare('SELECT last_sent_at, resend_count FROM PendingRegistrations WHERE email = ?');
+    // The cooldown is measured by MySQL against its own clock. PHP's
+    // date.timezone and the database server's timezone are configured
+    // separately, and where they differ every request looks as though a code
+    // has just been sent — locking the user out for the size of the gap.
+    $existing = $db->prepare(
+        'SELECT last_sent_at, resend_count,
+                (last_sent_at > DATE_SUB(NOW(), INTERVAL ' . CODE_RESEND_COOLDOWN_SECONDS . ' SECOND)) AS too_soon
+           FROM PendingRegistrations WHERE email = ?'
+    );
     $existing->execute([$email]);
     $prior = $existing->fetch();
-    if ($prior && strtotime($prior['last_sent_at']) > time() - CODE_RESEND_COOLDOWN_SECONDS) {
+    if ($prior && (int)$prior['too_soon'] === 1) {
         json_response(false, 'Please wait a moment before requesting another code.', [], 429);
     }
 
@@ -143,14 +151,18 @@ if ($method === 'POST' && $action === 'register_resend') {
     }
 
     $db   = getDB();
-    $stmt = $db->prepare('SELECT * FROM PendingRegistrations WHERE email = ? LIMIT 1');
+    $stmt = $db->prepare(
+        'SELECT *,
+                (last_sent_at > DATE_SUB(NOW(), INTERVAL ' . CODE_RESEND_COOLDOWN_SECONDS . ' SECOND)) AS too_soon
+           FROM PendingRegistrations WHERE email = ? LIMIT 1'
+    );
     $stmt->execute([$email]);
     $row = $stmt->fetch();
 
     if (!$row) {
         json_response(false, 'No pending registration found for this email. Please start again.', [], 404);
     }
-    if (strtotime($row['last_sent_at']) > time() - CODE_RESEND_COOLDOWN_SECONDS) {
+    if ((int)$row['too_soon'] === 1) {
         json_response(false, 'Please wait a moment before requesting another code.', [], 429);
     }
     if ((int)$row['resend_count'] >= CODE_MAX_RESENDS) {
@@ -659,6 +671,177 @@ if ($method === 'POST' && $action === 'change_password') {
 }
 
 // ════════════════════════════════════════════════════════════
+// ACCOUNT DELETION
+// ════════════════════════════════════════════════════════════
+
+/**
+ * Everything that would keep this Users row alive. The schema aims
+ * eleven RESTRICT foreign keys at Users on purpose — an inspection
+ * record must never lose its author — so this count is what decides
+ * whether an account can be erased outright or has to be anonymised
+ * where it stands.
+ */
+function accountRecordCounts(int $uid): array {
+    $db = getDB();
+    $q  = function (string $sql, int $binds) use ($db, $uid): int {
+        $st = $db->prepare($sql);
+        $st->execute(array_fill(0, $binds, $uid));
+        return (int)$st->fetchColumn();
+    };
+    return [
+        'reports'     => $q('SELECT COUNT(*) FROM InspectionReports WHERE submitted_by = ?', 1),
+        'tasks'       => $q('SELECT COUNT(*) FROM InspectionTasks WHERE created_by = ? OR assigned_to = ?', 2),
+        'work_orders' => $q('SELECT COUNT(*) FROM WorkOrders WHERE created_by = ? OR assigned_to = ?', 2),
+        'crew'        => $q('SELECT COUNT(*) FROM WorkOrderAssignees WHERE user_id = ?', 1),
+        'updates'     => $q('SELECT COUNT(*) FROM FieldWorkUpdates WHERE updated_by = ?', 1),
+        'generated'   => $q('SELECT COUNT(*) FROM GeneratedReports WHERE generated_by = ?', 1),
+        'owned_teams' => $q('SELECT COUNT(*) FROM Teams WHERE owner_id = ?', 1),
+    ];
+}
+
+// ── GET ?action=account_summary ──────────────────────────────
+// What a deletion would leave behind. The confirmation box quotes
+// these numbers back, so the person is agreeing to something
+// specific rather than to the word "delete".
+if ($method === 'GET' && $action === 'account_summary') {
+    $user   = requireAuth();
+    $counts = accountRecordCounts((int)$user['user_id']);
+    $kept   = array_sum($counts);
+
+    json_response(true, 'Account summary.', [
+        'counts'       => $counts,
+        'kept_records' => $kept,
+        'erasable'     => $kept === 0,
+        'on_a_team'    => (bool)userMemberships((int)$user['user_id']),
+    ]);
+}
+
+// ── POST ?action=delete_account ──────────────────────────────
+// Self-service erasure from the team gate. Two shapes:
+//   no linked records → the Users row goes, and CASCADE takes the
+//                       memberships, invitations and reset codes.
+//   any linked record → the row stays and keeps its display name,
+//                       marked "(deleted)", because in a safety record
+//                       the author is part of the record. Every other
+//                       personal field is overwritten and the login is
+//                       closed for good.
+// Either way the email address is released, so the person can sign
+// up again later with the same one.
+if ($method === 'POST' && $action === 'delete_account') {
+    $user = requireAuth();
+    $uid  = (int)$user['user_id'];
+    // Checked rather than cast: a JSON array here raises "Array to
+    // string conversion", which prints ahead of the JSON body and takes
+    // the whole response down with it.
+    $sent = getBody()['password'] ?? '';
+    $pass = is_string($sent) ? $sent : '';
+
+    if ($pass === '') {
+        json_response(false, 'Enter your password to confirm.', [], 400);
+    }
+    // Only the stranded gate screen offers this. Someone still on a
+    // team has to be removed by an administrator first, so that open
+    // work is never orphaned without anyone noticing.
+    if (userMemberships($uid)) {
+        json_response(false, 'You are still on a team. An administrator has to remove you from it first.', [], 409);
+    }
+
+    $db   = getDB();
+    $stmt = $db->prepare('SELECT password_hash, name, email, avatar_path FROM Users WHERE user_id = ?');
+    $stmt->execute([$uid]);
+    $row = $stmt->fetch();
+
+    if (!$row || !password_verify($pass, $row['password_hash'])) {
+        json_response(false, 'That password is incorrect.', [], 401);
+    }
+
+    $counts = accountRecordCounts($uid);
+    $kept   = array_sum($counts);
+    $name   = (string)$row['name'];
+    $email  = (string)$row['email'];
+    $avatar = $row['avatar_path'];
+
+    $db->beginTransaction();
+    try {
+        // Inside the transaction, so a rollback cannot leave behind a
+        // line claiming a deletion that never happened. Deliberately
+        // without the name: an erasure that writes the name into a
+        // fresh log entry is not an erasure.
+        logActivity(null, 'delete_account', 'user', $uid, $kept === 0
+            ? "Account #$uid was deleted by its owner."
+            : "Account #$uid was deleted by its owner; $kept linked record(s) kept under a name marked deleted.");
+
+        // Personal data that lives outside Users, keyed by the address.
+        $db->prepare('DELETE FROM Invitations WHERE email = ?')->execute([$email]);
+        $db->prepare('DELETE FROM PendingRegistrations WHERE email = ?')->execute([$email]);
+        $db->prepare('DELETE FROM PasswordResetCodes WHERE user_id = ?')->execute([$uid]);
+
+        // The address is written into the free text of the activity log
+        // too — "Failed login attempt for: juan@…". It is unique, so
+        // every line carrying it is this person's and can be rewritten
+        // outright. Replaced rather than deleted, so the team's audit
+        // trail keeps its shape.
+        $db->prepare('UPDATE ActivityLogs SET description = REPLACE(description, ?, ?) WHERE description LIKE ?')
+           ->execute([$email, 'a deleted account', '%' . $email . '%']);
+
+        // The name is deliberately left alone here. It is kept on the
+        // account itself (see below), so rewriting it out of the log
+        // would contradict that — and a name is not unique, so a global
+        // rewrite would relabel a namesake's entries as well.
+
+        if ($kept === 0) {
+            $db->prepare('DELETE FROM Users WHERE user_id = ?')->execute([$uid]);
+        } else {
+            // The display name survives, marked. A supervisor looking at
+            // a two-year-old work order still needs to know whose crew
+            // did the job; "Deleted user" erases accountability along
+            // with the person. Marked in the stored value rather than at
+            // render time so every screen, export and email agrees
+            // without eighteen queries having to opt in.
+            //
+            // Trimmed to 90 so the marker fits the varchar(100) column.
+            $marked = mb_substr($name, 0, 90) . ' (deleted)';
+
+            $db->prepare(
+                'UPDATE Users
+                    SET name = ?, email = ?, password_hash = ?,
+                        gender = "prefer_not_to_say", birthdate = NULL, address = NULL,
+                        avatar_path = NULL, is_active = 0,
+                        email_verified_at = NULL, terms_accepted_at = NULL
+                  WHERE user_id = ?'
+            )->execute([
+                $marked,
+                'deleted-' . $uid . '@deleted.invalid',
+                // Not a usable password and not a hash of anything the
+                // person knows: this login can never be used again.
+                password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT),
+                $uid,
+            ]);
+            // The membership rows outlive an anonymised user, so drop
+            // them — no team should be able to list a ghost. Records
+            // keep their author because every listing joins Users, not
+            // TeamMembers.
+            $db->prepare('DELETE FROM TeamMembers WHERE user_id = ?')->execute([$uid]);
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        // commit() can throw too, and rolling back a transaction that is
+        // no longer open throws again, burying the real error.
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        json_response(false, 'The account could not be deleted. Please try again.', [], 500);
+    }
+
+    deleteAvatarFile($avatar);
+
+    $_SESSION = [];
+    session_destroy();
+
+    json_response(true, 'Your account has been deleted.');
+}
+
+// ════════════════════════════════════════════════════════════
 // FORGOT PASSWORD
 // ════════════════════════════════════════════════════════════
 
@@ -681,12 +864,14 @@ if ($method === 'POST' && $action === 'forgot_start') {
     }
 
     $existing = $db->prepare(
-        'SELECT last_sent_at, resend_count FROM PasswordResetCodes
-         WHERE user_id = ? AND consumed_at IS NULL ORDER BY reset_id DESC LIMIT 1'
+        'SELECT last_sent_at, resend_count,
+                (last_sent_at > DATE_SUB(NOW(), INTERVAL ' . CODE_RESEND_COOLDOWN_SECONDS . ' SECOND)) AS too_soon
+           FROM PasswordResetCodes
+          WHERE user_id = ? AND consumed_at IS NULL ORDER BY reset_id DESC LIMIT 1'
     );
     $existing->execute([$user['user_id']]);
     $prior = $existing->fetch();
-    if ($prior && strtotime($prior['last_sent_at']) > time() - CODE_RESEND_COOLDOWN_SECONDS) {
+    if ($prior && (int)$prior['too_soon'] === 1) {
         json_response(true, $generic); 
     }
 
@@ -759,7 +944,8 @@ if ($method === 'POST' && $action === 'forgot_resend') {
 
     $db   = getDB();
     $stmt = $db->prepare(
-        'SELECT prc.reset_id, prc.last_sent_at, prc.resend_count, u.user_id, u.name
+        'SELECT prc.reset_id, prc.last_sent_at, prc.resend_count, u.user_id, u.name,
+                (prc.last_sent_at > DATE_SUB(NOW(), INTERVAL ' . CODE_RESEND_COOLDOWN_SECONDS . ' SECOND)) AS too_soon
          FROM PasswordResetCodes prc
          JOIN Users u ON prc.user_id = u.user_id
          WHERE u.email = ? AND prc.consumed_at IS NULL
@@ -771,7 +957,7 @@ if ($method === 'POST' && $action === 'forgot_resend') {
     if (!$row) {
         json_response(true, $generic); // generic, same reasoning as forgot_start
     }
-    if (strtotime($row['last_sent_at']) > time() - CODE_RESEND_COOLDOWN_SECONDS) {
+    if ((int)$row['too_soon'] === 1) {
         json_response(true, $generic);
     }
     if ((int)$row['resend_count'] >= CODE_MAX_RESENDS) {
@@ -812,7 +998,8 @@ if ($method === 'POST' && $action === 'forgot_reset') {
 
     $db   = getDB();
     $stmt = $db->prepare(
-        'SELECT prc.* FROM PasswordResetCodes prc
+        'SELECT prc.*, (prc.expires_at < NOW()) AS is_expired
+         FROM PasswordResetCodes prc
          JOIN Users u ON prc.user_id = u.user_id
          WHERE u.email = ? AND prc.consumed_at IS NULL AND prc.verified_at IS NOT NULL
          ORDER BY prc.reset_id DESC LIMIT 1'
@@ -823,7 +1010,9 @@ if ($method === 'POST' && $action === 'forgot_reset') {
     if (!$row) {
         json_response(false, 'Please verify your reset code before setting a new password.', [], 403);
     }
-    if (strtotime($row['expires_at']) < time()) {
+    // Expiry judged by the database. Measured against PHP's clock instead, a
+    // gap between the two silently extends the life of a reset code.
+    if ((int)$row['is_expired'] === 1) {
         json_response(false, codeErrorMessage('expired'), ['reason' => 'expired'], 400);
     }
 

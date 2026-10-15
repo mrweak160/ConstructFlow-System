@@ -6,7 +6,6 @@
 <meta name="theme-color" content="#f59e0b"/>
 <link rel="manifest" href="manifest.json"/>
 <title>ConstructFlow — Team Administration</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="style.css"/>
 <link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
 <link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
@@ -22,7 +21,7 @@
 
     <!-- ── SIDEBAR ─────────────────────────────────────── -->
     <aside class="sidebar">
-            <div class="sidebar-logo"><div class="logo-badge"><img src="logo/logo.svg" alt="ConstructFlow"/></div><div class="logo-name">CONSTRUCTFLOW</div></div>
+            <div class="sidebar-logo"><div class="logo-badge"><img src="logo/logo.png" alt="ConstructFlow"/></div><div class="logo-name">CONSTRUCTFLOW</div></div>
       <div class="sidebar-user">
         <div class="avatar av-red" id="adm-av">A</div>
         <div class="user-info">
@@ -32,6 +31,7 @@
       </div>
 
       <nav class="sidebar-nav">
+        <div class="nav-label">Main Menu</div>
         <div class="nav-item active" id="adm-nav-dash" onclick="switchView('admin','dashboard')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
           Dashboard
@@ -39,6 +39,11 @@
         <div class="nav-item" id="adm-nav-members" onclick="switchView('admin','members')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>
           Members
+        </div>
+        <div class="nav-label">Records</div>
+        <div class="nav-item" id="adm-nav-rep" onclick="switchView('admin','reports')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          Reports &amp; Exports
         </div>
         <div class="nav-item" id="adm-nav-logs" onclick="switchView('admin','logs')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -99,32 +104,25 @@
               <h1>Team Administration</h1>
               <p id="adm-dash-sub">Loading team&hellip;</p>
             </div>
+            <div class="ph-actions">
+              <button class="btn btn-amber" onclick="openInviteModal()">Invite member</button>
+            </div>
           </div>
 
-          <div class="stats-grid">
-            <div class="stat-card"><div class="stat-label">Active Members</div><div class="stat-value" id="adm-stat-members">0</div></div>
-            <div class="stat-card"><div class="stat-label">Invitations Sent</div><div class="stat-value" id="adm-stat-invites">0</div></div>            
-            <div class="stat-card"><div class="stat-label">Awaiting a Role</div><div class="stat-value" id="adm-stat-unassigned">0</div></div>
+          <div class="stats-panel cols-3">
+            <div class="stat-cell"><div class="stat-label">Active Members</div><div class="stat-value" id="adm-stat-members">0</div></div>
+            <div class="stat-cell"><div class="stat-label">Invitations Sent</div><div class="stat-value" id="adm-stat-invites">0</div></div>
+            <div class="stat-cell"><div class="stat-label">Awaiting a Role</div><div class="stat-value" id="adm-stat-unassigned">0</div></div>
           </div>
 
-          <div class="two-col">
-            <div>
-              <div class="section-title">Recent Activity</div>
-              <div class="widget">
-                <div id="adm-events-list"><div class="empty-state"><p>No activity yet</p></div></div>
+          <div class="widget widget-bleed">
+            <div class="widget-header">
+              <div>
+                <div class="widget-title">Recent activity</div>
               </div>
+              <div class="widget-head-actions"><button class="btn btn-sm btn-dark" onclick="switchView('admin','logs')">View all</button></div>
             </div>
-            <div>
-              <div class="section-title">Add someone</div>
-              <div class="widget">
-                <p style="font-size:12.5px;color:var(--muted);line-height:1.6;margin-bottom:14px">
-                  Email is the only way onto this team. Invite someone and pick
-                  their role — they set a password from the link and arrive ready
-                  to work.
-                </p>
-                <button class="btn btn-amber" style="width:100%;justify-content:center" onclick="switchView('admin','members')">Go to Members</button>
-              </div>
-            </div>
+            <div id="adm-events-list"><div class="empty-state"><p>No activity yet</p></div></div>
           </div>
         </div>
 
@@ -149,27 +147,118 @@
             <div id="adm-invite-list"></div>
           </div>
 
-                    <div class="widget" style="padding:0">
-            <div class="table-wrap" style="border:none;border-radius:0">
-              <table>
-                <thead><tr><th>Member</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead>
-                <tbody id="adm-member-table"></tbody>
-              </table>
-            </div>
-            <div class="mobile-card-list" id="adm-member-cards" style="padding:14px"></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Member</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead>
+              <tbody id="adm-member-table"></tbody>
+            </table>
           </div>
+          <div class="mobile-card-list" id="adm-member-cards"></div>
         </div>
 
         <!-- ── ACTIVITY LOGS ─────────────────────────── -->
+        <!-- REPORTS & EXPORTS -->
+        <div class="view" id="adm-reports">
+          <div class="page-header">
+            <div><h1>Reports &amp; Exports</h1><p>Summaries of everything this team has recorded.</p></div>
+          </div>
+
+          <!-- The filters drive every output below, so they sit above all
+               three rather than being repeated inside each. -->
+          <div class="filter-bar" id="ar-filters">
+            <div class="fb-field">
+              <label>Period</label>
+              <select class="form-control" id="ar-range" onchange="admRangePreset(this.value)">
+                <option value="30">Last 30 days</option>
+                <option value="month">This month</option>
+                <option value="90">Last 90 days</option>
+                <option value="all">All time</option>
+                <option value="custom">Custom dates&hellip;</option>
+              </select>
+            </div>
+            <!-- Only for "Custom dates", as on the workload screen. -->
+            <div class="fb-dates fb-hide" id="ar-dates">
+              <div class="fb-field"><label>From</label><input type="date" class="form-control" id="ar-from"/></div>
+              <div class="fb-field"><label>To</label><input type="date" class="form-control" id="ar-to"/></div>
+              <button class="btn btn-amber" onclick="admLoadSummary()">Apply</button>
+            </div>
+            <div class="fb-field">
+              <label>Severity</label>
+              <select class="form-control" id="ar-sev" onchange="admLoadSummary()">
+                <option value="">All severities</option>
+                <option value="low">Low</option>
+                <option value="moderate">Moderate</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <span class="form-hint" id="ar-range-note"></span>
+          </div>
+
+          <div class="reports-filter" style="margin-bottom:14px">
+            <button class="filter-btn active" id="ar-tab-reports" onclick="admSwitchSummary('reports')">Inspection Reports</button>
+            <button class="filter-btn" id="ar-tab-workorders" onclick="admSwitchSummary('workorders')">Work Orders</button>
+            <button class="filter-btn" id="ar-tab-workload" onclick="admSwitchSummary('workload')">Workload</button>
+          </div>
+
+          <!-- Inspection reports / work orders share one pane. -->
+          <div id="ar-pane-summary">
+            <div class="stats-panel" id="ar-stats"></div>
+            <div class="section-header" style="margin-top:4px">
+              <div class="section-title" id="ar-table-title">Inspection Reports</div>
+              <button class="btn btn-sm btn-amber" onclick="admPrintSummary()">Print / Save as PDF</button>
+            </div>
+            <div class="table-wrap">
+              <table><thead id="ar-head"></thead><tbody id="ar-body"></tbody></table>
+            </div>
+            <div class="mobile-card-list" id="ar-cards"></div>
+          </div>
+
+          <!-- Workload shares the view but not the filters: it ranks people
+               over a period, so severity and status filters make no sense
+               here and it carries its own date range. -->
+          <div id="ar-pane-workload" style="display:none">
+            <div class="filter-bar">
+              <div class="fb-field">
+                <label>Period</label>
+                <select class="form-control" id="ar-wl-range" onchange="wlRangePreset('ar',this.value)">
+                  <option value="30">Last 30 days</option>
+                  <option value="month">This month</option>
+                  <option value="90">Last 90 days</option>
+                  <option value="all">All time</option>
+                  <option value="custom">Custom dates&hellip;</option>
+                </select>
+              </div>
+              <div class="fb-dates fb-hide" id="ar-wl-dates">
+                <div class="fb-field"><label>From</label><input type="date" class="form-control" id="ar-wl-from"/></div>
+                <div class="fb-field"><label>To</label><input type="date" class="form-control" id="ar-wl-to"/></div>
+                <button class="btn btn-amber" onclick="wlLoad('ar')">Apply</button>
+              </div>
+              <div class="fb-field">
+                <label>Rank by</label>
+                <div class="reports-filter" style="margin:0">
+                  <button class="filter-btn active" id="ar-wl-mode-weighted" onclick="wlSetMode('ar','weighted')">Weighted</button>
+                  <button class="filter-btn" id="ar-wl-mode-count" onclick="wlSetMode('ar','count')">Count</button>
+                </div>
+              </div>
+              <div class="fb-actions">
+                <button class="btn btn-dark" onclick="wlPrint('ar')">Print / Save as PDF</button>
+              </div>
+            </div>
+            <div id="ar-wl-body"></div>
+          </div>
+
+        </div>
+
         <div class="view" id="adm-logs">
           <div class="page-header">
             <div><h1>Activity Logs</h1><p>Audit trail for this team.</p></div>
             <div class="ph-actions">
-              <button class="btn btn-dark" onclick="exportRecords()">Export CSV</button>
+              <button class="btn btn-dark" onclick="exportRecords()">Export</button>
               <button class="btn btn-dark" onclick="clearLogs()">Clear Logs</button>
             </div>
           </div>
-          <div class="widget">
+          <div class="widget widget-bleed">
             <div id="adm-logs-list"><div class="empty-state"><p>No logs yet</p></div></div>
           </div>
         </div>
@@ -273,7 +362,7 @@
       <button class="btn-close" onclick="closeModal('modal-profile')">×</button>
     </div>
     <div class="modal-body">
-      <div style="text-align:center;margin-bottom:18px">
+      <div class="prof-head">
         <div class="avatar-wrap">
           <div class="avatar" id="prof-av" style="width:64px;height:64px;font-size:24px" onclick="viewAvatar()"></div>
           <button type="button" class="avatar-edit-badge" id="prof-photo-btn" style="display:none" title="Change photo" aria-label="Change photo" onclick="document.getElementById('prof-photo-inp').click()">
@@ -283,8 +372,8 @@
             </svg>
           </button>
         </div>
-        <div style="font-size:16px;font-weight:700;color:var(--text)" id="prof-name"></div>
-        <div style="font-size:12px;color:var(--muted)" id="prof-role"></div>
+        <div class="prof-head-name" id="prof-name"></div>
+        <div class="prof-head-role" id="prof-role"></div>
         <input type="file" id="prof-photo-inp" accept="image/jpeg,image/png,image/webp"style="display:none" onchange="stageAvatar(this)"/>
         <button class="action-link" id="prof-photo-remove" style="color:var(--red);display:none;margin-top:10px" onclick="stageAvatarRemove()">Remove photo</button>
       </div>
@@ -308,21 +397,21 @@
       <!-- EDIT FORM — hidden until Edit Profile is pressed -->
       <div id="prof-edit" style="display:none">
         <div class="form-group"><label>Full Name</label><input class="form-control" id="prof-name-inp"/></div>
-        <div class="form-group">
-          <label>Email</label>
+        <div class="form-group" style="margin-bottom:0">
+          <label>Email <span class="info-wrap"><button type="button" class="info-btn" aria-expanded="false" aria-label="About your email and role" onclick="toggleInfo(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-5"/><path d="M12 8h.01"/></svg></button><span class="info-pop" role="note" hidden>Your email identifies your account and cannot be changed here. Your role is set through team management, not from this form.</span></span></label>
           <input class="form-control" id="prof-email-inp" disabled/>
-          <p style="font-size:11.5px;color:var(--muted);margin-top:5px">
-            Your email identifies your account and cannot be changed here.
-          </p>
         </div>
-        <p style="font-size:11.5px;color:var(--muted);margin:-4px 0 14px">
-          Your role is set through team management, not from this form.
-        </p>
 
-        <div class="section-title">Change password</div>
-        <div class="form-group"><label>Current Password</label><input class="form-control" type="password" id="prof-curpass" placeholder="Required only if changing password"/></div>
-        <div class="form-group"><label>New Password</label><input class="form-control" type="password" id="prof-pass" placeholder="Leave blank to keep current"/></div>
-        <p style="font-size:11.5px;color:var(--muted)">Password must contain at least 8 characters, 1 uppercase letter, 1 lowercase letter, and 1 number.</p>
+        <!-- Changing a password is a separate job from editing a profile,
+             so it is set off behind a rule rather than reading as two more
+             profile fields. -->
+        <div class="prof-section">
+          <div class="section-title">Change password</div>
+          <p class="prof-section-note">Leave both boxes empty to keep your current password.</p>
+          <div class="form-group"><label>Current Password</label><input class="form-control" type="password" id="prof-curpass" placeholder="Required only if changing password"/></div>
+          <div class="form-group" style="margin-bottom:0"><label>New Password</label><input class="form-control" type="password" id="prof-pass" placeholder="Leave blank to keep current"/></div>
+          <p class="form-hint">At least 8 characters, with one uppercase letter, one lowercase letter and one number.</p>
+        </div>
       </div>
     </div>
     <div class="modal-footer">

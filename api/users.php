@@ -13,7 +13,9 @@ if ($method === 'POST') {
 
 // ── GET ?action=list ─────────────────────────────────────────
 if ($method === 'GET' && $action === 'list') {
-    $m      = requireTeam();
+    // The pickers that use this are a supervisor's. Field staff have no use
+    // for a roster, and it no longer carries email or gender for anyone.
+    $m      = requireTeamRole('supervisor', 'administrator');
     $teamId = (int)$m['team_id'];
     $db     = getDB();
 
@@ -28,16 +30,14 @@ if ($method === 'GET' && $action === 'list') {
         $params[] = $roleFilter;
     }
     if ($search) {
-        $where[]  = '(u.name LIKE ? OR u.email LIKE ?)';
-        $params[] = "%$search%";
+        $where[]  = 'u.name LIKE ?';
         $params[] = "%$search%";
     }
 
     $whereSQL = 'WHERE ' . implode(' AND ', $where);
 
     $stmt = $db->prepare(
-        "SELECT u.user_id, u.name, u.email, u.gender,
-                tm.role, tm.status, tm.joined_at, u.is_active
+        "SELECT u.user_id, u.name, tm.role
          FROM TeamMembers tm
          JOIN Users u ON tm.user_id = u.user_id
          $whereSQL
