@@ -103,7 +103,9 @@ if ($method === 'POST' && $action === 'submit') {
         json_response(false, 'This task is not assigned to you.', [], 403);
     }
     if ($t['status'] !== 'assigned') {
-        json_response(false, 'A report has already been submitted for this task.', [], 400);
+        json_response(false, $t['status'] === 'cancelled'
+            ? 'This task was cancelled by the supervisor.'
+            : 'A report has already been submitted for this task.', [], 400);
     }
 
     // nextCode() can hand two simultaneous requests the same number; the
@@ -146,6 +148,13 @@ if ($method === 'POST' && $action === 'submit') {
              VALUES (?, ?, ?, ?, ?)'
         )->execute([$reportId, $photoPath, basename($photoPath), $latitude, $longitude]);
     }
+
+    notifyRole($teamId, 'supervisor', "New inspection report: $code",
+        "{$actor['name']} filed an inspection report. It is waiting for your review.", [
+            'Report'   => "$code · $title",
+            'Severity' => ucfirst($severity),
+            'Location' => $address_text ?: $location_text,
+        ]);
 
     logActivity($actor['user_id'], 'submit_report', 'report', $reportId,
         "{$actor['name']} submitted inspection report $code.", $teamId);

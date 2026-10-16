@@ -10,8 +10,40 @@
 <link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
 <link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
 <link rel="apple-touch-icon" sizes="180x180" href="logo/apple-touch-icon.png"/>
+<!-- Installed app: logo and name, right after the phone's own launch screen.
+     Once per session. Styled here, not in style.css, so it is hidden even
+     when a cached style.css from before an update is in use. -->
+<style>
+.cf-launch{display:none}
+html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-index:10000;
+  align-items:center;justify-content:center;gap:12px;background:#0f1117;transition:opacity .3s}
+.cf-launch.out{opacity:0}
+.cf-launch img{width:48px;height:48px;display:block}
+.cf-launch span{font-family:'Inter',sans-serif;font-weight:700;font-size:21px;letter-spacing:.3px;color:#f1f5f9}
+</style>
+<script>
+(function(){
+  try{
+    var standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    if(!standalone || sessionStorage.getItem('cf_launched')) return;
+    var html = document.documentElement;
+    html.classList.add('cf-launching');
+    if(!sessionStorage.getItem('cf_launch_t')) sessionStorage.setItem('cf_launch_t', String(Date.now()));
+    addEventListener('load', function(){
+      var shown = Date.now() - Number(sessionStorage.getItem('cf_launch_t') || Date.now());
+      setTimeout(function(){
+        sessionStorage.setItem('cf_launched', '1');
+        var el = document.querySelector('.cf-launch');
+        if(el) el.classList.add('out');
+        setTimeout(function(){ html.classList.remove('cf-launching'); }, 320);
+      }, Math.max(0, 900 - shown));
+    });
+  }catch(e){}
+})();
+</script>
 </head>
 <body data-page="supervisor">
+<div class="cf-launch" aria-hidden="true" style="display:none"><img src="logo/logo-mark.png" alt=""/><span>CONSTRUCTFLOW</span></div>
 <div class="toast-container" id="toasts"></div>
 
 <div id="supervisor" class="screen active">
@@ -149,7 +181,7 @@
           </div>
           <div class="filter-bar">
             <div class="fb-field">
-              <label>Period</label>
+              <label>Date</label>
               <select class="form-control" id="sw-wl-range" onchange="wlRangePreset('sw',this.value)">
                 <option value="30">Last 30 days</option>
                 <option value="month">This month</option>
@@ -233,6 +265,75 @@
     <div class="modal-footer">
       <button class="btn btn-dark" onclick="closeModal('modal-create-task')">Cancel</button>
       <button class="btn btn-amber" onclick="createTask()">Create & Assign Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Manage a task nobody has inspected yet: edit, reassign or cancel -->
+<div class="overlay" id="modal-manage-task">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2>Manage Task</h2><p id="mt-sub"></p></div>
+      <button class="btn-close" onclick="closeModal('modal-manage-task')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="mt-id"/>
+
+      <!-- READ-ONLY — where the task opens. Nothing changes until Edit. -->
+      <div id="mt-view">
+        <div class="detail-row"><span class="detail-label">Title</span><span class="detail-value" id="mt-v-title">&mdash;</span></div>
+        <div class="detail-row"><span class="detail-label">Location</span><span class="detail-value" id="mt-v-loc">&mdash;</span></div>
+        <div class="detail-row"><span class="detail-label">Due Date</span><span class="detail-value" id="mt-v-due">&mdash;</span></div>
+        <div class="detail-row"><span class="detail-label">Inspector</span><span class="detail-value" id="mt-v-insp">&mdash;</span></div>
+        <div style="padding:10px 0 2px">
+          <div class="detail-label" style="margin-bottom:5px">Description</div>
+          <div id="mt-v-desc" style="font-size:13px;color:var(--label);line-height:1.65"></div>
+        </div>
+      </div>
+
+      <!-- EDIT — the form, plus handing the task on or cancelling it. -->
+      <div id="mt-edit" style="display:none">
+        <div class="form-group"><label>Task Title <span>*</span></label><input class="form-control" id="mt-title" maxlength="200"/></div>
+        <div class="form-group"><label>Description</label><textarea class="form-control" id="mt-desc" placeholder="Optional instructions for the inspector..."></textarea></div>
+        <div class="form-row">
+          <div class="form-group"><label>Location <span>*</span></label><input class="form-control" id="mt-loc"/></div>
+          <div class="form-group"><label>Due Date</label><input type="date" class="form-control" id="mt-due"/></div>
+        </div>
+        <div class="prof-section">
+          <div class="section-title">Cancel this task</div>
+          <p class="prof-section-note">For a task that is no longer needed. The inspector will no longer see it.</p>
+          <div class="form-group" style="margin-bottom:10px"><input class="form-control" id="mt-reason" placeholder="Reason, e.g. duplicate of another task"/></div>
+          <button class="btn btn-danger" onclick="cancelManagedTask()">Cancel task</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark"  id="mt-close-btn"    onclick="closeModal('modal-manage-task')">Close</button>
+      <button class="btn btn-amber" id="mt-edit-btn"     onclick="manageTaskMode('edit')">Edit</button>
+      <button class="btn btn-dark"  id="mt-reassign-btn" style="display:none" onclick="reassignManagedTask()">Reassign inspector</button>
+      <button class="btn btn-dark"  id="mt-back-btn"     style="display:none" onclick="manageTaskMode('view')">Back</button>
+      <button class="btn btn-amber" id="mt-save-btn"     style="display:none" onclick="saveManagedTask()">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit an open work order: instructions and deadline -->
+<div class="overlay" id="modal-edit-wo">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2>Edit Work Order</h2><p id="ew-sub"></p></div>
+      <button class="btn-close" onclick="closeModal('modal-edit-wo')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="ew-id"/>
+      <div class="form-group"><label>Work Instructions</label><textarea class="form-control" id="ew-instructions" placeholder="Describe the work to be done..."></textarea></div>
+      <div class="form-group" style="margin-bottom:0"><label>Deadline</label><input type="date" class="form-control" id="ew-deadline"/>
+        <div class="form-hint">Leave empty for no deadline.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-edit-wo')">Cancel</button>
+      <button class="btn btn-amber" onclick="saveEditWO()">Save changes</button>
     </div>
   </div>
 </div>
@@ -450,6 +551,13 @@
         <div class="assign-panel-head">Field Worker's Completion Report</div>
         <div id="vf-worker-note" style="font-size:13px;color:var(--label);line-height:1.65"></div>
         <div id="vf-photos" class="photo-preview" style="margin-top:10px"></div>
+      </div>
+
+      <!-- At final review: what the inspector found on site. -->
+      <div class="assign-panel" id="vf-site-panel" style="display:none">
+        <div class="assign-panel-head" id="vf-site-head">Inspector's Site Check</div>
+        <div id="vf-site-note" style="font-size:13px;color:var(--label);line-height:1.65"></div>
+        <div id="vf-site-photos" class="photo-preview" style="margin-top:10px"></div>
       </div>
 
       <div class="form-row">

@@ -10,8 +10,40 @@
 <link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
 <link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
 <link rel="apple-touch-icon" sizes="180x180" href="logo/apple-touch-icon.png"/>
+<!-- Installed app: logo and name, right after the phone's own launch screen.
+     Once per session. Styled here, not in style.css, so it is hidden even
+     when a cached style.css from before an update is in use. -->
+<style>
+.cf-launch{display:none}
+html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-index:10000;
+  align-items:center;justify-content:center;gap:12px;background:#0f1117;transition:opacity .3s}
+.cf-launch.out{opacity:0}
+.cf-launch img{width:48px;height:48px;display:block}
+.cf-launch span{font-family:'Inter',sans-serif;font-weight:700;font-size:21px;letter-spacing:.3px;color:#f1f5f9}
+</style>
+<script>
+(function(){
+  try{
+    var standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    if(!standalone || sessionStorage.getItem('cf_launched')) return;
+    var html = document.documentElement;
+    html.classList.add('cf-launching');
+    if(!sessionStorage.getItem('cf_launch_t')) sessionStorage.setItem('cf_launch_t', String(Date.now()));
+    addEventListener('load', function(){
+      var shown = Date.now() - Number(sessionStorage.getItem('cf_launch_t') || Date.now());
+      setTimeout(function(){
+        sessionStorage.setItem('cf_launched', '1');
+        var el = document.querySelector('.cf-launch');
+        if(el) el.classList.add('out');
+        setTimeout(function(){ html.classList.remove('cf-launching'); }, 320);
+      }, Math.max(0, 900 - shown));
+    });
+  }catch(e){}
+})();
+</script>
 </head>
 <body data-page="inspector">
+<div class="cf-launch" aria-hidden="true" style="display:none"><img src="logo/logo-mark.png" alt=""/><span>CONSTRUCTFLOW</span></div>
 <div class="toast-container" id="toasts"></div>
 
 <div id="inspector" class="screen active">
@@ -314,6 +346,14 @@
         <div class="assign-panel-head">Field Worker's Completion Report</div>
         <div id="vf-worker-note" style="font-size:13px;color:var(--label);line-height:1.65"></div>
         <div id="vf-photos" class="photo-preview" style="margin-top:10px"></div>
+      </div>
+
+      <!-- The inspector's own evidence from the site check. -->
+      <div class="assign-panel" id="vf-site-upload">
+        <div class="assign-panel-head">Your Site Photos</div>
+        <div class="form-hint" style="margin:0 0 8px">At least one photo of the finished work is needed to mark it complete.</div>
+        <div class="photo-upload"><input type="file" id="vf-photo" accept="image/*" multiple onchange="handleSitePhotos(this)"/><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><p>Tap to upload photos</p></div>
+        <div class="photo-preview" id="vf-photo-preview"></div>
       </div>
 
       <div class="form-row">

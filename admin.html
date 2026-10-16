@@ -10,8 +10,40 @@
 <link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
 <link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
 <link rel="apple-touch-icon" sizes="180x180" href="logo/apple-touch-icon.png"/>
+<!-- Installed app: logo and name, right after the phone's own launch screen.
+     Once per session. Styled here, not in style.css, so it is hidden even
+     when a cached style.css from before an update is in use. -->
+<style>
+.cf-launch{display:none}
+html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-index:10000;
+  align-items:center;justify-content:center;gap:12px;background:#0f1117;transition:opacity .3s}
+.cf-launch.out{opacity:0}
+.cf-launch img{width:48px;height:48px;display:block}
+.cf-launch span{font-family:'Inter',sans-serif;font-weight:700;font-size:21px;letter-spacing:.3px;color:#f1f5f9}
+</style>
+<script>
+(function(){
+  try{
+    var standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    if(!standalone || sessionStorage.getItem('cf_launched')) return;
+    var html = document.documentElement;
+    html.classList.add('cf-launching');
+    if(!sessionStorage.getItem('cf_launch_t')) sessionStorage.setItem('cf_launch_t', String(Date.now()));
+    addEventListener('load', function(){
+      var shown = Date.now() - Number(sessionStorage.getItem('cf_launch_t') || Date.now());
+      setTimeout(function(){
+        sessionStorage.setItem('cf_launched', '1');
+        var el = document.querySelector('.cf-launch');
+        if(el) el.classList.add('out');
+        setTimeout(function(){ html.classList.remove('cf-launching'); }, 320);
+      }, Math.max(0, 900 - shown));
+    });
+  }catch(e){}
+})();
+</script>
 </head>
 <body data-page="admin">
+<div class="cf-launch" aria-hidden="true" style="display:none"><img src="logo/logo-mark.png" alt=""/><span>CONSTRUCTFLOW</span></div>
 
 <div class="toast-container" id="toasts"></div>
 
@@ -44,6 +76,10 @@
         <div class="nav-item" id="adm-nav-rep" onclick="switchView('admin','reports')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
           Reports &amp; Exports
+        </div>
+        <div class="nav-item" id="adm-nav-workload" onclick="switchView('admin','workload')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          Workload
         </div>
         <div class="nav-item" id="adm-nav-logs" onclick="switchView('admin','logs')">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
@@ -167,7 +203,7 @@
                three rather than being repeated inside each. -->
           <div class="filter-bar" id="ar-filters">
             <div class="fb-field">
-              <label>Period</label>
+              <label>Date</label>
               <select class="form-control" id="ar-range" onchange="admRangePreset(this.value)">
                 <option value="30">Last 30 days</option>
                 <option value="month">This month</option>
@@ -198,7 +234,6 @@
           <div class="reports-filter" style="margin-bottom:14px">
             <button class="filter-btn active" id="ar-tab-reports" onclick="admSwitchSummary('reports')">Inspection Reports</button>
             <button class="filter-btn" id="ar-tab-workorders" onclick="admSwitchSummary('workorders')">Work Orders</button>
-            <button class="filter-btn" id="ar-tab-workload" onclick="admSwitchSummary('workload')">Workload</button>
           </div>
 
           <!-- Inspection reports / work orders share one pane. -->
@@ -214,50 +249,69 @@
             <div class="mobile-card-list" id="ar-cards"></div>
           </div>
 
-          <!-- Workload shares the view but not the filters: it ranks people
-               over a period, so severity and status filters make no sense
-               here and it carries its own date range. -->
-          <div id="ar-pane-workload" style="display:none">
-            <div class="filter-bar">
-              <div class="fb-field">
-                <label>Period</label>
-                <select class="form-control" id="ar-wl-range" onchange="wlRangePreset('ar',this.value)">
-                  <option value="30">Last 30 days</option>
-                  <option value="month">This month</option>
-                  <option value="90">Last 90 days</option>
-                  <option value="all">All time</option>
-                  <option value="custom">Custom dates&hellip;</option>
-                </select>
-              </div>
-              <div class="fb-dates fb-hide" id="ar-wl-dates">
-                <div class="fb-field"><label>From</label><input type="date" class="form-control" id="ar-wl-from"/></div>
-                <div class="fb-field"><label>To</label><input type="date" class="form-control" id="ar-wl-to"/></div>
-                <button class="btn btn-amber" onclick="wlLoad('ar')">Apply</button>
-              </div>
-              <div class="fb-field">
-                <label>Rank by</label>
-                <div class="reports-filter" style="margin:0">
-                  <button class="filter-btn active" id="ar-wl-mode-weighted" onclick="wlSetMode('ar','weighted')">Weighted</button>
-                  <button class="filter-btn" id="ar-wl-mode-count" onclick="wlSetMode('ar','count')">Count</button>
-                </div>
-              </div>
-              <div class="fb-actions">
-                <button class="btn btn-dark" onclick="wlPrint('ar')">Print / Save as PDF</button>
+        </div>
+
+        <!-- WORKLOAD — who has finished what, ranked over a period. -->
+        <div class="view" id="adm-workload">
+          <div class="page-header">
+            <div><h1>Workload</h1><p>Who has finished what, over a period you choose.</p></div>
+          </div>
+          <div class="filter-bar">
+            <div class="fb-field">
+              <label>Date</label>
+              <select class="form-control" id="ar-wl-range" onchange="wlRangePreset('ar',this.value)">
+                <option value="30">Last 30 days</option>
+                <option value="month">This month</option>
+                <option value="90">Last 90 days</option>
+                <option value="all">All time</option>
+                <option value="custom">Custom dates&hellip;</option>
+              </select>
+            </div>
+            <div class="fb-dates fb-hide" id="ar-wl-dates">
+              <div class="fb-field"><label>From</label><input type="date" class="form-control" id="ar-wl-from"/></div>
+              <div class="fb-field"><label>To</label><input type="date" class="form-control" id="ar-wl-to"/></div>
+              <button class="btn btn-amber" onclick="wlLoad('ar')">Apply</button>
+            </div>
+            <div class="fb-field">
+              <label>Rank by</label>
+              <div class="reports-filter" style="margin:0">
+                <button class="filter-btn active" id="ar-wl-mode-weighted" onclick="wlSetMode('ar','weighted')">Weighted</button>
+                <button class="filter-btn" id="ar-wl-mode-count" onclick="wlSetMode('ar','count')">Count</button>
               </div>
             </div>
-            <div id="ar-wl-body"></div>
+            <div class="fb-actions">
+              <button class="btn btn-dark" onclick="wlPrint('ar')">Print / Save as PDF</button>
+            </div>
           </div>
-
+          <div id="ar-wl-body"></div>
         </div>
 
         <div class="view" id="adm-logs">
           <div class="page-header">
-            <div><h1>Activity Logs</h1><p>Audit trail for this team.</p></div>
+            <div><h1>Activity Logs</h1><p>Audit trail for this team. Every entry is sealed, so it cannot be cleared or edited.</p>
+              <div class="log-seal" id="adm-log-seal"></div></div>
             <div class="ph-actions">
               <button class="btn btn-dark" onclick="exportRecords()">Export</button>
-              <button class="btn btn-dark" onclick="clearLogs()">Clear Logs</button>
             </div>
           </div>
+          <div class="filter-bar" id="al-filters">
+            <div class="fb-field">
+              <label>Date</label>
+              <select class="form-control" id="al-range" onchange="logRangePreset(this.value)">
+                <option value="30">Last 30 days</option>
+                <option value="month">This month</option>
+                <option value="90">Last 90 days</option>
+                <option value="all">All time</option>
+                <option value="custom">Custom dates&hellip;</option>
+              </select>
+            </div>
+            <div class="fb-dates fb-hide" id="al-dates">
+              <div class="fb-field"><label>From</label><input type="date" class="form-control" id="al-from"/></div>
+              <div class="fb-field"><label>To</label><input type="date" class="form-control" id="al-to"/></div>
+              <button class="btn btn-amber" onclick="renderAdmLogs()">Apply</button>
+            </div>
+          </div>
+
           <div class="widget widget-bleed">
             <div id="adm-logs-list"><div class="empty-state"><p>No logs yet</p></div></div>
           </div>

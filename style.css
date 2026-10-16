@@ -156,6 +156,8 @@ html,body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:
 .btn-amber:hover{background:var(--amber-dk)}
 .btn-dark{background:var(--card);color:var(--text);border:1px solid var(--border)}
 .btn-dark:hover{background:var(--border)}
+.btn-danger{background:rgba(239,68,68,.12);color:#f87171;border:1px solid rgba(239,68,68,.2)}
+.btn-danger:hover{background:rgba(239,68,68,.2)}
 .btn-sm{padding:6px 12px;font-size:11.5px}
 
 /* THE STAT PANEL — the four figures as one object rather than four
@@ -262,6 +264,15 @@ td.issue{font-weight:500;color:var(--text)}
 .badge-assigned{color:#60a5fa}
 .badge-inprogress{color:var(--amber)}
 .badge-completed{color:#4ade80}
+.badge-cancelled{color:var(--muted);text-decoration:line-through}
+/* Late work. Plain red text like the other labels; the date is on hover. */
+/* The Activity Logs seal check: green when intact, red with the first problem. */
+/* Under the Activity Logs list when the period holds more than it shows. */
+.log-more{padding:12px 16px;font-size:12px;color:var(--muted);border-top:1px solid var(--border)}
+.log-seal{margin-top:6px;font-size:12px;font-weight:600;color:var(--muted)}
+.log-seal.ok{color:var(--green)}
+.log-seal.bad{color:var(--red)}
+.tag-overdue{font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--red);white-space:nowrap;margin-left:6px}
 .badge-amber{color:var(--amber)}
 .badge-green{color:#4ade80}
 
@@ -377,6 +388,10 @@ tbody td:has(> .action-link) .action-link+.action-link{margin-left:3px}
   margin:0 calc(var(--panel-x) * -1) -1px;
 }
 .widget .queue-card:last-child{margin-bottom:0}
+/* A panel whose list of rows comes last ends at its last row, with no
+   empty band under it; the panel's own border closes the last row. */
+.widget:has(> :last-child > .queue-card:last-child){padding-bottom:0}
+.widget > :last-child > .queue-card:last-child{border-bottom:none}
 /* Flat and spread: three equal columns rather than three items bunched at
    the left of a very wide band. Matches the rhythm of the stat cells. */
 .wo-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--sp-3)}
@@ -497,12 +512,13 @@ select.form-control{-webkit-appearance:none;cursor:pointer}
    group are not the same height. */
 .filter-bar{
   display:flex;align-items:center;gap:var(--sp-3) var(--sp-5);flex-wrap:wrap;
-  background:var(--card);border:1px solid var(--border);
-  border-radius:var(--radius);padding:12px 14px;margin-bottom:14px;
+  margin-bottom:14px;
 }
 .fb-field{display:flex;flex-direction:row;align-items:center;gap:var(--sp-2);min-width:0}
-.fb-field > label{font-size:10px;font-weight:600;color:var(--muted);letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
+.fb-field > label{font-size:10px;font-weight:600;color:var(--text);letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
 .fb-field .form-control{margin:0}
+/* On the page, the same card background as the sort dropdown. */
+.filter-bar:not(.fb-in-modal) .form-control{background:var(--card)}
 .fb-dates{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
 .fb-actions{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
 /* A class, not the hidden attribute: the flex rules above would outrank
@@ -602,9 +618,7 @@ select.form-control{-webkit-appearance:none;cursor:pointer}
 .wl-name{flex:1 1 auto;min-width:0;font-size:13px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wl-score{flex-shrink:0;font-size:11px;color:var(--muted)}
 .wl-score strong{font-size:14px;color:var(--text)}
-.wl-bar{height:4px;border-radius:2px;background:var(--border);overflow:hidden;margin:6px 0 6px 24px}
-.wl-bar span{display:block;height:100%;background:var(--amber)}
-.wl-meta{display:flex;flex-wrap:wrap;gap:2px 12px;margin-left:24px;font-size:11px;color:var(--muted)}
+.wl-meta{display:flex;flex-wrap:wrap;gap:2px 12px;margin:5px 0 0 24px;font-size:11px;color:var(--muted)}
 .form-hint{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.55}
 
 /* ═══ PROFILE FORM ═══

@@ -21,6 +21,7 @@ DROP TABLE IF EXISTS DefectTypes;
 DROP TABLE IF EXISTS InspectionReports;
 DROP TABLE IF EXISTS InspectionTasks;
 DROP TABLE IF EXISTS GeneratedReports;
+DROP TABLE IF EXISTS LogChains;
 DROP TABLE IF EXISTS ActivityLogs;
 DROP TABLE IF EXISTS LoginAttempts;
 DROP TABLE IF EXISTS PasswordResetCodes;
@@ -200,7 +201,7 @@ CREATE TABLE InspectionTasks (
   title         VARCHAR(200)  NOT NULL,
   description   TEXT          DEFAULT NULL,
   location_text VARCHAR(255)  NOT NULL,
-  status        ENUM('assigned','submitted','closed') NOT NULL DEFAULT 'assigned',
+  status        ENUM('assigned','submitted','closed','cancelled') NOT NULL DEFAULT 'assigned',
   due_date      DATE          DEFAULT NULL,
   created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -375,11 +376,25 @@ CREATE TABLE ActivityLogs (
   description   VARCHAR(500)  DEFAULT NULL,
   ip_address    VARCHAR(45)   DEFAULT NULL,
   logged_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  chain_seq     INT UNSIGNED  DEFAULT NULL,      -- place in the team's sealed chain
+  prev_hash     CHAR(64)      DEFAULT NULL,      -- signature of the entry before
+  row_hash      CHAR(64)      DEFAULT NULL,      -- this entry's signature (config/logseal.php)
   CONSTRAINT fk_log_user FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE SET NULL,
   CONSTRAINT fk_log_team FOREIGN KEY (team_id) REFERENCES Teams(team_id) ON DELETE SET NULL,
   INDEX idx_logs_user (user_id),
   INDEX idx_logs_team (team_id, logged_at),
-  INDEX idx_logs_logged_at (logged_at)
+  INDEX idx_logs_logged_at (logged_at),
+  INDEX idx_logs_chain (team_id, chain_seq)
+) ENGINE=InnoDB;
+
+-- Each sealed chain's length and last signature, signed, so entries cut
+-- off the end of the log show too.
+CREATE TABLE LogChains (
+  chain_key     INT UNSIGNED  NOT NULL PRIMARY KEY,   -- team_id; 0 = outside any team
+  length        INT UNSIGNED  NOT NULL,
+  head_hash     CHAR(64)      NOT NULL,
+  head_sig      CHAR(64)      NOT NULL,
+  updated_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
 -- ============================================================

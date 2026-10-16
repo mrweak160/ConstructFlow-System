@@ -790,6 +790,17 @@ if ($method === 'POST' && $action === 'delete_account') {
         // every line carrying it is this person's and can be rewritten
         // outright. Replaced rather than deleted, so the team's audit
         // trail keeps its shape.
+        // That rewrites signed entries, so their chains are re-signed from
+        // the first one touched when the request ends (config/logseal.php).
+        $touched = $db->prepare(
+            'SELECT COALESCE(team_id, 0) AS chain_key, MIN(chain_seq) AS from_seq
+               FROM ActivityLogs WHERE description LIKE ? AND chain_seq IS NOT NULL
+              GROUP BY COALESCE(team_id, 0)'
+        );
+        $touched->execute(['%' . $email . '%']);
+        foreach ($touched->fetchAll() as $t) {
+            resealLogFrom((int)$t['chain_key'], (int)$t['from_seq']);
+        }
         $db->prepare('UPDATE ActivityLogs SET description = REPLACE(description, ?, ?) WHERE description LIKE ?')
            ->execute([$email, 'a deleted account', '%' . $email . '%']);
 

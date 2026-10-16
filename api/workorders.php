@@ -1,6 +1,6 @@
 <?php
 // ConstructFlow — Work Orders API
-// create · list · detail · update_status · verify · update_assignees · reassign_verifier
+// create · list · detail · update_status · verify · update_assignees · update_details · reassign_verifier
 
 
 require_once __DIR__ . '/../config/helpers.php';
@@ -151,6 +151,9 @@ if ($method === 'POST' && $action === 'create') {
                 "{$actor['name']} closed the inspection task when work order $code was assigned.", $teamId);
         }
     }
+
+    notifyUsers($workerIds, $teamId, "New work order: $code",
+        "{$actor['name']} assigned you to a work order.", woDetails($woId) + ['Instructions' => $instructions]);
 
     logActivity($actor['user_id'], 'create_work_order', 'work_order', $woId,
         "{$actor['name']} created and assigned work order $code.", $teamId);
@@ -379,6 +382,12 @@ if ($method === 'POST' && $action === 'update_status') {
            ->execute([$reportStatus, $w['report_id'], $teamId]);
     }
 
+    if ($status === 'pending_supervisor') {
+        notifyRole($teamId, 'supervisor', "Work done, ready for review: {$w['wo_code']}",
+            "{$actor['name']} marked this work order as done. It is waiting for your review.",
+            woDetails($woId) + ['Remarks' => $remarks]);
+    }
+
     logActivity($actor['user_id'], 'update_work_order', 'work_order', $woId,
         "{$actor['name']} updated work order {$w['wo_code']} to '$status'.", $teamId);
 
@@ -401,7 +410,7 @@ if ($method === 'POST' && $action === 'verify') {
     $m      = requireTeamRole('supervisor', 'field_inspector');
     $actor  = currentUser();
     $teamId = (int)$m['team_id'];
-    $body   = getBody();
+    $body   = $_POST ?: getBody();   // multipart when the inspector sends photos
 
     $woId     = (int)($body['wo_id'] ?? 0);
     $decision = in_array($body['decision'] ?? '', ['approve','reject'], true)
@@ -440,6 +449,18 @@ if ($method === 'POST' && $action === 'verify') {
         json_response(false, 'Please say what needs reworking.', [], 400);
     }
 
+    // Photos from the site check. Saved before anything is recorded, so a
+    // sign-off whose photos all fail (wrong type, too large) is refused rather
+    // than going through without the proof it rests on.
+    $photos = $stage === 'pending_inspector'
+             ? handleMultiplePhotoUploads('photos', 'WO', $woId)
+             : ['saved' => [], 'errors' => []];
+    if ($stage === 'pending_inspector' && $decision === 'approve' && !$photos['saved']) {
+        json_response(false, $photos['errors']
+            ? 'None of the photos could be used. ' . implode(' ', $photos['errors'])
+            : 'Add at least one photo of the finished work.', [], 400);
+    }
+
     if ($decision === 'reject') {
         $newStatus = 'rework';              // back to the field worker from any stage
     } else {
@@ -472,6 +493,12 @@ if ($method === 'POST' && $action === 'verify') {
     $db->prepare(
         'INSERT INTO FieldWorkUpdates (wo_id, updated_by, status, remarks) VALUES (?, ?, ?, ?)'
     )->execute([$woId, $actor['user_id'], $newStatus, $remarks]);
+    $updateId = (int)$db->lastInsertId();
+    foreach ($photos['saved'] as $photoPath) {
+        $db->prepare(
+            'INSERT INTO FieldWorkPhotos (update_id, file_path, file_name) VALUES (?, ?, ?)'
+        )->execute([$updateId, $photoPath, basename($photoPath)]);
+    }
 
     // Each stage stamps its own column, so the closure never overwrites the
     // first supervisor review. A rejection stamps nothing and only moves the
@@ -508,6 +535,22 @@ if ($method === 'POST' && $action === 'verify') {
            ->execute([$w['report_id'], $teamId]);
     }
 
+    // Tell whoever holds the work order now.
+    $facts = woDetails($woId);
+    if ($decision === 'reject') {
+        notifyUsers(woCrewIds($woId), $teamId, "Rework needed: {$w['wo_code']}",
+            "{$actor['name']} sent this work order back for rework.", $facts + ['What to fix' => $remarks]);
+    } elseif ($newStatus === 'pending_inspector') {
+        notifyUsers([$verifyInspector], $teamId, "Site check needed: {$w['wo_code']}",
+            "{$actor['name']} asked you to check the finished work on site.", $facts);
+    } elseif ($newStatus === 'pending_closure') {
+        notifyRole($teamId, 'supervisor', "Checked on site, ready to close: {$w['wo_code']}",
+            "{$actor['name']} checked the finished work on site and approved it.", $facts + ['Remarks' => $remarks]);
+    } else {
+        notifyUsers(woCrewIds($woId), $teamId, "Work order closed: {$w['wo_code']}",
+            "{$actor['name']} closed this work order. The job is complete.", $facts);
+    }
+
     $stageLabel = match ($stage) {
         'pending_supervisor' => 'supervisor review',
         'pending_inspector'  => 'site verification',
@@ -523,7 +566,7 @@ if ($method === 'POST' && $action === 'verify') {
             'completed'         => 'Work order closed. The whole job is complete.',
           }
         : 'Sent back for rework.',
-        ['status' => $newStatus]);
+        ['status' => $newStatus, 'photo_warnings' => $photos['errors']]);
 }
 
 // ── POST ?action=update_assignees ────────────────────────────
@@ -577,6 +620,8 @@ if ($method === 'POST' && $action === 'update_assignees') {
         }
     }
 
+    $before = woCrewIds($woId);
+
     // Replace the roster wholesale — simpler than diffing, and the table
     // carries no per-assignee state that would be lost.
     $db->prepare('DELETE FROM WorkOrderAssignees WHERE wo_id = ?')->execute([$woId]);
@@ -587,10 +632,69 @@ if ($method === 'POST' && $action === 'update_assignees') {
     $db->prepare('UPDATE WorkOrders SET assigned_to = ? WHERE wo_id = ? AND team_id = ?')
        ->execute([$leadId, $woId, $teamId]);
 
+    $facts = woDetails($woId);
+    notifyUsers(array_diff($workerIds, $before), $teamId, "New work order: {$w['wo_code']}",
+        "{$actor['name']} added you to a work order.", $facts + ['Instructions' => $w['instructions']]);
+    notifyUsers(array_diff($before, $workerIds), $teamId, "Removed from work order: {$w['wo_code']}",
+        "{$actor['name']} took you off this work order. You no longer need to work on it.", $facts);
+
     logActivity($actor['user_id'], 'update_assignees', 'work_order', $woId,
         "{$actor['name']} updated the crew on work order {$w['wo_code']}.", $teamId);
 
     json_response(true, 'Crew updated.');
+}
+
+// ── POST ?action=update_details ─────────────────────────────
+// Body: { wo_id, instructions, deadline }
+//
+// The supervisor's correction to an open work order. Severity and crew are
+// not here: severity sets the crew limit, and the crew has its own action.
+if ($method === 'POST' && $action === 'update_details') {
+    $m      = requireTeamRole('supervisor');
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
+    $body   = getBody();
+
+    $woId         = (int)($body['wo_id'] ?? 0);
+    $instructions = clean($body['instructions'] ?? '');
+    $deadline     = clean($body['deadline'] ?? '');
+    if (!$woId) {
+        json_response(false, 'Work order is required.', [], 400);
+    }
+
+    $db   = getDB();
+    $stmt = $db->prepare('SELECT * FROM WorkOrders WHERE wo_id = ? AND team_id = ?');
+    $stmt->execute([$woId, $teamId]);
+    $w = $stmt->fetch();
+    if (!$w) {
+        json_response(false, 'Work order not found.', [], 404);
+    }
+    if ($w['status'] === 'completed') {
+        json_response(false, 'This work order is already closed.', [], 409);
+    }
+    if ($deadline !== '' && $deadline !== (string)($w['deadline'] ?? '')) {
+        $d = DateTime::createFromFormat('Y-m-d', $deadline);
+        if (!$d || $d->format('Y-m-d') !== $deadline) {
+            json_response(false, 'Enter a valid date.', [], 400);
+        }
+        $past = getDB()->prepare('SELECT CAST(? AS DATE) < CURDATE()');
+        $past->execute([$deadline]);
+        if ((int)$past->fetchColumn() === 1) {
+            json_response(false, 'The date must be today or a later date.', [], 400);
+        }
+    }
+
+    $db->prepare('UPDATE WorkOrders SET instructions = ?, deadline = ? WHERE wo_id = ? AND team_id = ?')
+       ->execute([$instructions, $deadline ?: null, $woId, $teamId]);
+
+    notifyUsers(woCrewIds($woId), $teamId, "Work order updated: {$w['wo_code']}",
+        "{$actor['name']} changed the instructions or deadline of this work order.",
+        woDetails($woId) + ['Instructions' => $instructions]);
+
+    logActivity($actor['user_id'], 'update_work_order_details', 'work_order', $woId,
+        "{$actor['name']} edited the details of work order {$w['wo_code']}.", $teamId);
+
+    json_response(true, "Work order {$w['wo_code']} updated.");
 }
 
 // ── POST ?action=reassign_verifier ───────────────────────────
@@ -638,6 +742,12 @@ if ($method === 'POST' && $action === 'reassign_verifier') {
 
     $db->prepare('UPDATE WorkOrders SET verify_inspector_id = ? WHERE wo_id = ? AND team_id = ?')
        ->execute([$newId, $woId, $teamId]);
+
+    $facts = woDetails($woId);
+    notifyUsers([$newId], $teamId, "Site check needed: {$w['wo_code']}",
+        "{$actor['name']} asked you to check the finished work on site.", $facts);
+    notifyUsers([(int)$w['verify_inspector_id']], $teamId, "Site check moved: {$w['wo_code']}",
+        "{$actor['name']} handed this site check to $name. You no longer need to do it.", $facts);
 
     logActivity($actor['user_id'], 'reassign_verifier', 'work_order', $woId,
         "{$actor['name']} handed site verification of work order {$w['wo_code']} to $name.", $teamId);

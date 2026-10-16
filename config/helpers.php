@@ -1,6 +1,8 @@
 <?php
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/notify.php';
+require_once __DIR__ . '/logseal.php';
 
 // ── TIME ZONE ────────────────────────────────────────────────
 // Every time the system records or compares is Philippine time, whatever
@@ -459,13 +461,16 @@ function logActivity(
 ): void {
     try {
         $teamId = $teamId ?? ($_SESSION['active_team_id'] ?? null);
-        getDB()->prepare(
+        $db = getDB();
+        $db->prepare(
             'INSERT INTO ActivityLogs (user_id, team_id, action, target_type, target_id, description, ip_address)
              VALUES (?, ?, ?, ?, ?, ?, ?)'
         )->execute([
             $userId, $teamId, $action, $targetType, $targetId, $description,
             $_SERVER['REMOTE_ADDR'] ?? null,
         ]);
+        // Signed when the request ends (config/logseal.php).
+        queueLogSeal((int)$db->lastInsertId());
     } catch (Exception $e) {
         // logging failure should not break the request
     }

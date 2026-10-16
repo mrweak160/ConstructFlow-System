@@ -277,6 +277,26 @@ ALTER TABLE Users
 ALTER TABLE PendingRegistrations
   ADD COLUMN IF NOT EXISTS contact_number VARCHAR(20) DEFAULT NULL AFTER address;
 
+-- A task that is no longer needed can be cancelled before it is inspected.
+ALTER TABLE InspectionTasks
+  MODIFY COLUMN status ENUM('assigned','submitted','closed','cancelled') NOT NULL DEFAULT 'assigned';
+
+-- The activity log is sealed (config/logseal.php). Entries already there
+-- are sealed as they stand the first time the log is written to or checked.
+ALTER TABLE ActivityLogs
+  ADD COLUMN IF NOT EXISTS chain_seq INT UNSIGNED DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS prev_hash CHAR(64)     DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS row_hash  CHAR(64)     DEFAULT NULL,
+  ADD INDEX  IF NOT EXISTS idx_logs_chain (team_id, chain_seq);
+
+CREATE TABLE IF NOT EXISTS LogChains (
+  chain_key     INT UNSIGNED  NOT NULL PRIMARY KEY,
+  length        INT UNSIGNED  NOT NULL,
+  head_hash     CHAR(64)      NOT NULL,
+  head_sig      CHAR(64)      NOT NULL,
+  updated_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 -- ── 4. Carry existing records over ──
 
 -- Every work order now has a crew. Before this upgrade it had one

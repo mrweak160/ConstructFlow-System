@@ -112,6 +112,8 @@ function taskStatusBanner(array $t): array {
     return match ($t['status']) {
         'closed'    => ['label' => 'CLOSED',    'tone' => 'done',
                         'note'  => 'The inspection is finished and the task has been closed.'],
+        'cancelled' => ['label' => 'CANCELLED', 'tone' => 'warn',
+                        'note'  => 'The supervisor cancelled this task before it was inspected.'],
         'submitted' => ['label' => 'SUBMITTED', 'tone' => 'done',
                         'note'  => 'The inspector has submitted a report for this task.'],
         default     => ['label' => 'ASSIGNED',  'tone' => 'warn',

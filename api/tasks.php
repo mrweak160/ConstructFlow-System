@@ -1,6 +1,6 @@
 <?php
 // ConstructFlow — Inspection Tasks API
-// create · list · reassign · close
+// create · list · reassign · update · cancel · close
 //
 
 require_once __DIR__ . '/../config/helpers.php';
@@ -81,6 +81,14 @@ if ($method === 'POST' && $action === 'create') {
         }
     }
     $taskId = (int)$db->lastInsertId();
+
+    notifyUsers([$assignedTo], $teamId, "New inspection task: $code",
+        "{$actor['name']} assigned you a new inspection task.", [
+            'Task'         => "$code · $title",
+            'Location'     => $location_text,
+            'Due'          => notifyDate($due_date ?: null),
+            'Instructions' => $description,
+        ]);
 
     logActivity($actor['user_id'], 'create_task', 'task', $taskId,
         "{$actor['name']} created and assigned inspection task $code.", $teamId);
@@ -184,10 +192,129 @@ if ($method === 'POST' && $action === 'reassign') {
     $db->prepare('UPDATE InspectionTasks SET assigned_to = ? WHERE task_id = ? AND team_id = ?')
        ->execute([$newId, $taskId, $teamId]);
 
+    $rows = [
+        'Task'     => "{$t['task_code']} · {$t['title']}",
+        'Location' => $t['location_text'],
+        'Due'      => notifyDate($t['due_date']),
+    ];
+    notifyUsers([$newId], $teamId, "New inspection task: {$t['task_code']}",
+        "{$actor['name']} handed you an inspection task.", $rows + ['Instructions' => $t['description']]);
+    notifyUsers([(int)$t['assigned_to']], $teamId, "Task moved: {$t['task_code']}",
+        "{$actor['name']} handed this task to $name. You no longer need to inspect it.", $rows);
+
     logActivity($actor['user_id'], 'reassign_task', 'task', $taskId,
         "{$actor['name']} reassigned task {$t['task_code']} to $name.", $teamId);
 
     json_response(true, "Task {$t['task_code']} reassigned to $name.");
+}
+
+// ── POST ?action=update ──────────────────────────────────────
+// Body: { task_id, title, description, location_text, due_date }
+//
+// Corrects a task nobody has inspected yet. Once a report exists the task
+// is part of that record and stays as it was filed. An unchanged due date
+// may already be past — the task is simply overdue — but a new one may not.
+if ($method === 'POST' && $action === 'update') {
+    $m      = requireTeamRole('supervisor');
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
+    $body   = getBody();
+
+    $taskId        = (int)($body['task_id'] ?? 0);
+    $title         = clean($body['title'] ?? '');
+    $description   = clean($body['description'] ?? '');
+    $location_text = clean($body['location_text'] ?? '');
+    $due_date      = clean($body['due_date'] ?? '');
+
+    if (!$taskId || !$title || !$location_text) {
+        json_response(false, 'Title and location are required.', [], 400);
+    }
+
+    $db   = getDB();
+    $stmt = $db->prepare('SELECT * FROM InspectionTasks WHERE task_id = ? AND team_id = ?');
+    $stmt->execute([$taskId, $teamId]);
+    $t = $stmt->fetch();
+    if (!$t) {
+        json_response(false, 'Task not found.', [], 404);
+    }
+    if ($t['status'] !== 'assigned') {
+        json_response(false, 'Only a task that has not been inspected yet can be edited.', [], 409);
+    }
+    if ($due_date !== '' && $due_date !== (string)$t['due_date']) {
+        $d = DateTime::createFromFormat('Y-m-d', $due_date);
+        if (!$d || $d->format('Y-m-d') !== $due_date) {
+            json_response(false, 'Enter a valid date.', [], 400);
+        }
+        $past = getDB()->prepare('SELECT CAST(? AS DATE) < CURDATE()');
+        $past->execute([$due_date]);
+        if ((int)$past->fetchColumn() === 1) {
+            json_response(false, 'The date must be today or a later date.', [], 400);
+        }
+    }
+
+    $db->prepare(
+        'UPDATE InspectionTasks SET title = ?, description = ?, location_text = ?, due_date = ?
+          WHERE task_id = ? AND team_id = ?'
+    )->execute([$title, $description, $location_text, $due_date ?: null, $taskId, $teamId]);
+
+    notifyUsers([(int)$t['assigned_to']], $teamId, "Task updated: {$t['task_code']}",
+        "{$actor['name']} changed the details of your inspection task.", [
+            'Task'         => "{$t['task_code']} · $title",
+            'Location'     => $location_text,
+            'Due'          => notifyDate($due_date ?: null),
+            'Instructions' => $description,
+        ]);
+
+    logActivity($actor['user_id'], 'update_task', 'task', $taskId,
+        "{$actor['name']} edited task {$t['task_code']}.", $teamId);
+
+    json_response(true, "Task {$t['task_code']} updated.");
+}
+
+// ── POST ?action=cancel ──────────────────────────────────────
+// Body: { task_id, reason }
+//
+// For a task that is no longer needed. Only before it is inspected, and
+// with a reason, which goes into the activity log.
+if ($method === 'POST' && $action === 'cancel') {
+    $m      = requireTeamRole('supervisor');
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
+    $body   = getBody();
+    $taskId = (int)($body['task_id'] ?? 0);
+    $reason = clean($body['reason'] ?? '');
+
+    if (!$taskId) {
+        json_response(false, 'Task is required.', [], 400);
+    }
+    if ($reason === '') {
+        json_response(false, 'Say why the task is being cancelled.', [], 400);
+    }
+
+    $db   = getDB();
+    $stmt = $db->prepare('SELECT * FROM InspectionTasks WHERE task_id = ? AND team_id = ?');
+    $stmt->execute([$taskId, $teamId]);
+    $t = $stmt->fetch();
+    if (!$t) {
+        json_response(false, 'Task not found.', [], 404);
+    }
+    if ($t['status'] !== 'assigned') {
+        json_response(false, 'Only a task that has not been inspected yet can be cancelled.', [], 409);
+    }
+
+    $db->prepare('UPDATE InspectionTasks SET status = "cancelled" WHERE task_id = ? AND team_id = ?')
+       ->execute([$taskId, $teamId]);
+
+    notifyUsers([(int)$t['assigned_to']], $teamId, "Task cancelled: {$t['task_code']}",
+        "{$actor['name']} cancelled this inspection task. You no longer need to inspect it.", [
+            'Task'   => "{$t['task_code']} · {$t['title']}",
+            'Reason' => $reason,
+        ]);
+
+    logActivity($actor['user_id'], 'cancel_task', 'task', $taskId,
+        "{$actor['name']} cancelled task {$t['task_code']}: $reason", $teamId);
+
+    json_response(true, "Task {$t['task_code']} cancelled.");
 }
 
 // ── POST ?action=close ───────────────────────────────────────

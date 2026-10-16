@@ -1,4 +1,4 @@
-const CACHE = 'constructflow-v120';
+const CACHE = 'constructflow-v133';
 const ASSETS = [
   './',
   './index.html',
@@ -24,6 +24,9 @@ const ASSETS = [
   './fonts/inter-variable-latin.woff2',
   './logo/icon-192.png',
   './logo/icon-512.png',
+  './logo/icon-maskable-192.png',
+  './logo/icon-maskable-512.png',
+  './logo/logo-mark.png',
   './logo/favicon.ico',
   './logo/favicon-96.png',
   './logo/apple-touch-icon.png',

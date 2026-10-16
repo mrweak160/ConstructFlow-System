@@ -10,8 +10,40 @@
 <link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
 <link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
 <link rel="apple-touch-icon" sizes="180x180" href="logo/apple-touch-icon.png"/>
+<!-- Installed app: logo and name, right after the phone's own launch screen.
+     Once per session. Styled here, not in style.css, so it is hidden even
+     when a cached style.css from before an update is in use. -->
+<style>
+.cf-launch{display:none}
+html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-index:10000;
+  align-items:center;justify-content:center;gap:12px;background:#0f1117;transition:opacity .3s}
+.cf-launch.out{opacity:0}
+.cf-launch img{width:48px;height:48px;display:block}
+.cf-launch span{font-family:'Inter',sans-serif;font-weight:700;font-size:21px;letter-spacing:.3px;color:#f1f5f9}
+</style>
+<script>
+(function(){
+  try{
+    var standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+    if(!standalone || sessionStorage.getItem('cf_launched')) return;
+    var html = document.documentElement;
+    html.classList.add('cf-launching');
+    if(!sessionStorage.getItem('cf_launch_t')) sessionStorage.setItem('cf_launch_t', String(Date.now()));
+    addEventListener('load', function(){
+      var shown = Date.now() - Number(sessionStorage.getItem('cf_launch_t') || Date.now());
+      setTimeout(function(){
+        sessionStorage.setItem('cf_launched', '1');
+        var el = document.querySelector('.cf-launch');
+        if(el) el.classList.add('out');
+        setTimeout(function(){ html.classList.remove('cf-launching'); }, 320);
+      }, Math.max(0, 900 - shown));
+    });
+  }catch(e){}
+})();
+</script>
 </head>
 <body data-page="fieldworker">
+<div class="cf-launch" aria-hidden="true" style="display:none"><img src="logo/logo-mark.png" alt=""/><span>CONSTRUCTFLOW</span></div>
 <div class="toast-container" id="toasts"></div>
 
 <div id="fieldworker" class="screen active">

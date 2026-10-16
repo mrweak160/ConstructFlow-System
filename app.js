@@ -201,13 +201,6 @@ function wlTable(rows, mode, opts){
     ? [...rows].sort((a,b) => b.done - a.done || b.score - a.score || a.name.localeCompare(b.name))
     : rows;
 
-  const top = sorted[0];
-  const bar = r => {
-    const basis = mode === 'count' ? (top.done || 1) : (top.score || 1);
-    const val   = mode === 'count' ? r.done : r.score;
-    return Math.max(2, Math.round((val / basis) * 100));
-  };
-
   return `<div class="table-wrap"><table>
     <thead><tr>
       <th style="width:34px">#</th><th>Name</th>
@@ -220,14 +213,7 @@ function wlTable(rows, mode, opts){
     <tbody>${sorted.map((r,i) => `<tr>
       <td style="color:var(--muted)">${i+1}</td>
       <td>${esc(r.name)}</td>
-      <td>
-        <div style="display:flex;align-items:center;gap:7px">
-          <strong>${esc(mode === 'count' ? r.done : r.score)}</strong>
-          <span style="flex:1;height:5px;border-radius:3px;background:var(--border);overflow:hidden;min-width:28px">
-            <span style="display:block;height:100%;width:${bar(r)}%;background:var(--amber)"></span>
-          </span>
-        </div>
-      </td>
+      <td><strong>${esc(mode === 'count' ? r.done : r.score)}</strong></td>
       <td style="color:var(--muted)">${esc(mode === 'count' ? r.score : r.done)}</td>
       <td>${r.low      || '<span style="color:var(--muted)">·</span>'}</td>
       <td>${r.moderate || '<span style="color:var(--muted)">·</span>'}</td>
@@ -242,7 +228,6 @@ function wlTable(rows, mode, opts){
           <span class="wl-name">${esc(r.name)}</span>
           <span class="wl-score"><strong>${esc(mode === 'count' ? r.done : r.score)}</strong> ${mode === 'count' ? 'completed' : 'pts'}</span>
         </div>
-        <div class="wl-bar"><span style="width:${bar(r)}%"></span></div>
         <div class="wl-meta">
           <span>${mode === 'count' ? esc(r.score) + ' pts' : esc(r.done) + ' completed'}</span>
           <span>L ${esc(r.low || 0)} · M ${esc(r.moderate || 0)} · H ${esc(r.high || 0)} · C ${esc(r.critical || 0)}</span>
@@ -300,7 +285,7 @@ function wlInit(prefix){
 function renderSupWorkload(){ wlInit('sw'); }
 
 // ── ADMIN REPORTS & EXPORTS ───────────────────────────────
-// Three outputs behind one set of filters. Inspection reports and work
+// Two summaries behind one set of filters (Workload has its own page). Inspection reports and work
 // orders are summaries of what the team found and fixed; the activity log
 // is the audit trail and stays a CSV, because it answers a different
 // question and spreadsheets are what people do with audit data.
@@ -336,23 +321,11 @@ function admRangePreset(v, autoLoad = true){
 
 function admSwitchSummary(kind){
   _admSummaryKind = kind;
-  ['reports','workorders','workload'].forEach(k => {
+  ['reports','workorders'].forEach(k => {
     const b = document.getElementById('ar-tab-' + k);
     if(b) b.classList.toggle('active', k === kind);
   });
-  document.getElementById('ar-pane-summary').style.display  = (kind === 'reports' || kind === 'workorders') ? '' : 'none';
-  document.getElementById('ar-pane-workload').style.display = kind === 'workload' ? '' : 'none';
-  // Period and severity drive the two summaries only. Workload carries its
-  // own period, so there they were a second, inert set of controls; their
-  // phone toolbar goes with them.
-  const filters = document.getElementById('ar-filters');
-  if(filters){
-    filters.classList.toggle('fb-hide', kind === 'workload');
-    const tb = filters.previousElementSibling;
-    if(tb && tb.classList.contains('fb-toolbar')) tb.classList.toggle('fb-hide', kind === 'workload');
-  }
-  if(kind === 'workload')      wlInit('ar');
-  else                         admLoadSummary();
+  admLoadSummary();
 }
 
 function admFilterQuery(){
@@ -488,6 +461,7 @@ function refreshView(screen,view){
     if(view==='dashboard') renderAdmDash();
     if(view==='members')   renderAdmMembers();
     if(view==='reports')   renderAdmReports();
+    if(view==='workload')  wlInit('ar');
     if(view==='logs')      renderAdmLogs();
   }
 }
@@ -563,14 +537,14 @@ async function renderInspTaskList(){
     el.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><p>No inspection tasks assigned to you right now.</p></div>';
     return;
   }
-  el.innerHTML = tasks.map(t=>`
+  el.innerHTML = lateFirst(tasks, taskOverdue).map(t=>`
     <div class="queue-card">
-      <div class="report-card-meta"><span style="font-size:12px;color:var(--muted)">${esc(t.task_code)}</span></div>
+      <div class="report-card-meta"><span style="font-size:12px;color:var(--muted)">${esc(t.task_code)}</span>${taskOverdue(t) ? overdueTag(t.due_date) : ''}</div>
       <h4>${esc(t.title.toUpperCase())}</h4>
       <p>${esc(t.description || 'No additional instructions provided.')}</p>
       <div class="queue-card-foot">
         <span class="report-card-loc" style="font-size:12px;color:var(--muted)">📍 ${esc(t.location_text)}</span>
-        ${t.due_date?`<span style="font-size:11.5px;color:var(--muted)">📅 Due ${fmtDate(t.due_date)}</span>`:''}
+        ${t.due_date?`<span style="font-size:11.5px;color:var(--muted)">📅 Due ${fmtDay(t.due_date)}</span>`:''}
         <button class="btn btn-amber btn-sm" onclick="openSubmitFromTask(${t.task_id})">Perform Inspection ›</button>
       </div>
     </div>`).join('');
@@ -714,7 +688,7 @@ async function renderSupWO(){
   const data = await res.json();
   const all = data.success ? data.data.work_orders : [];
   syncSortBar('sup-wo', sortAnchor('sup-wo-table'), true, all.length, renderSupWO);
-  const wos = applySort('sup-wo', all, 'created_at', true);
+  const wos = lateFirst(applySort('sup-wo', all, 'created_at', true), woOverdue);
 
   const tbody = document.getElementById('sup-wo-table');
   const cards = document.getElementById('sup-wo-cards');
@@ -730,13 +704,13 @@ async function renderSupWO(){
     <td>${esc(w.assigned_to_name)}</td>
     <td><span class="badge badge-${w.severity}">${cap(w.severity)}</span></td>
     <td>${fmtDate(w.created_at)}</td>
-    <td>${woStatusBadge(w.status)}</td>
+    <td>${woStatusBadge(w.status)}${woOverdue(w) ? overdueTag(w.deadline) : ''}</td>
   </tr>`).join('');
   cards.innerHTML = wos.map(w=>`
     <div ${rowOpen(open(w), 'm-card')}>
       <div class="m-card-top"><div><div class="m-card-title">${esc(w.report_title)}</div><div class="m-card-id">${esc(w.wo_code)} → ${esc(w.assigned_to_name)}</div></div><span class="badge badge-${w.severity}">${cap(w.severity)}</span></div>
       <div class="m-card-loc">📍 ${esc(w.address_text || w.task_location || w.location_text)}</div>
-      <div class="m-card-footer">${woStatusBadge(w.status)}</div>
+      <div class="m-card-footer">${woStatusBadge(w.status)}${woOverdue(w) ? overdueTag(w.deadline) : ''}</div>
     </div>`).join('');
 }
 
@@ -747,12 +721,14 @@ async function renderSupTasks(){
   // dropdown shows a single option.
   const all = data.success ? data.data.tasks : [];
   syncSortBar('sup-tasks', sortAnchor('sup-tasks-table'), false, all.length, renderSupTasks);
-  const tasks = applySort('sup-tasks', all, 'created_at', false);
+  const tasks = lateFirst(applySort('sup-tasks', all, 'created_at', false), taskOverdue);
+  _supTasks = Object.fromEntries(all.map(t => [String(t.task_id), t]));
 
   const statusBadgeTask = s => ({
     assigned:  '<span class="badge badge-pending">Assigned</span>',
     submitted: '<span class="badge badge-amber">Awaiting Review</span>',
-    closed:    '<span class="badge badge-green">Closed</span>'
+    closed:    '<span class="badge badge-green">Closed</span>',
+    cancelled: '<span class="badge badge-cancelled">Cancelled</span>'
   }[s] || s);
 
   const tbody = document.getElementById('sup-tasks-table');
@@ -763,14 +739,14 @@ async function renderSupTasks(){
     return;
   }
   // A task opens the report it produced. One that has not been inspected yet
-  // has no report to show; the one thing to do with it is hand it to another
-  // inspector, so its row opens that. A task still sitting at "submitted"
+  // has no report to show; its row opens Manage Task — edit, hand it to
+  // another inspector, or cancel it. A task still sitting at "submitted"
   // never became a work order, which is the only case where closing it by
   // hand is still needed.
   const open = (t, cls = '') => {
     if(!t.report_id){
       return t.status === 'assigned'
-        ? rowOpen(`openPickInspector('task','${t.task_id}','${t.assigned_to}','${esc(t.task_code)}')`, cls)
+        ? rowOpen(`openManageTask('${t.task_id}')`, cls)
         : (cls ? `class="${cls}"` : '');
     }
     const extra = t.status==='submitted' ? `,'close-task','${t.task_id}'` : '';
@@ -781,8 +757,8 @@ async function renderSupTasks(){
     <td class="issue">${esc(t.title)}</td>
     <td>${esc(t.assigned_to_name)}</td>
     <td>${esc(t.location_text)}</td>
-    <td>${statusBadgeTask(t.status)}</td>
-    <td>${t.due_date ? fmtDate(t.due_date) : '—'}</td>
+    <td>${statusBadgeTask(t.status)}${taskOverdue(t) ? overdueTag(t.due_date) : ''}</td>
+    <td>${t.due_date ? fmtDay(t.due_date) : '—'}</td>
   </tr>`).join('');
   cards.innerHTML = tasks.map(t=>`
     <div ${open(t, 'm-card')}>
@@ -790,6 +766,110 @@ async function renderSupTasks(){
       <div class="m-card-loc">📍 ${esc(t.location_text)}</div>
       <div class="m-card-footer">${t.due_date?`Due ${fmtDate(t.due_date)}`:''}</div>
     </div>`).join('');
+}
+
+// ── MANAGE A TASK (supervisor) ───────────────────────────
+// A task nobody has inspected yet can still be corrected, handed to another
+// inspector, or cancelled. Once a report exists it stays as filed.
+let _supTasks = {};
+
+function openManageTask(taskId){
+  const t = _supTasks[String(taskId)];
+  if(!t) return;
+  document.getElementById('mt-id').value = t.task_id;
+  setText('mt-sub', `${t.task_code} · assigned to ${t.assigned_to_name}`);
+  setText('mt-v-title', t.title || '—');
+  setText('mt-v-loc',   t.location_text || '—');
+  setText('mt-v-due',   t.due_date ? fmtDay(t.due_date) : 'None set');
+  setText('mt-v-insp',  t.assigned_to_name || '—');
+  setText('mt-v-desc',  t.description || 'No instructions given.');
+  manageTaskMode('view');
+  openModal('modal-manage-task');
+}
+
+// Read-only until Edit. Going back to the summary discards anything typed,
+// so the form always starts from the task as saved.
+function manageTaskMode(mode){
+  const edit = mode === 'edit';
+  const t    = _supTasks[document.getElementById('mt-id').value];
+  if(t){
+    document.getElementById('mt-title').value  = t.title || '';
+    document.getElementById('mt-desc').value   = t.description || '';
+    document.getElementById('mt-loc').value    = t.location_text || '';
+    document.getElementById('mt-due').value    = t.due_date ? String(t.due_date).slice(0, 10) : '';
+    document.getElementById('mt-reason').value = '';
+  }
+  document.getElementById('mt-view').style.display = edit ? 'none' : 'block';
+  document.getElementById('mt-edit').style.display = edit ? 'block' : 'none';
+  ['mt-close-btn', 'mt-edit-btn'].forEach(id => document.getElementById(id).style.display = edit ? 'none' : '');
+  ['mt-reassign-btn', 'mt-back-btn', 'mt-save-btn'].forEach(id => document.getElementById(id).style.display = edit ? '' : 'none');
+  if(edit) document.getElementById('mt-title').focus();
+}
+
+async function saveManagedTask(){
+  const id    = document.getElementById('mt-id').value;
+  const title = document.getElementById('mt-title').value.trim();
+  const loc   = document.getElementById('mt-loc').value.trim();
+  if(!title || !loc){ toast('Title and location are required', 'error'); return; }
+  const res = await admApi('tasks', 'update', {
+    task_id: Number(id), title, location_text: loc,
+    description: document.getElementById('mt-desc').value.trim(),
+    due_date:    document.getElementById('mt-due').value
+  });
+  if(!res.success){ toast(res.message || 'Could not save the task', 'error'); return; }
+  closeModal('modal-manage-task');
+  toast(res.message, 'success');
+  refreshActiveView();
+}
+
+async function cancelManagedTask(){
+  const id     = document.getElementById('mt-id').value;
+  const reason = document.getElementById('mt-reason').value.trim();
+  if(!reason){
+    toast('Say why the task is being cancelled', 'error');
+    document.getElementById('mt-reason').focus();
+    return;
+  }
+  if(!confirm('Cancel this task? The inspector will no longer see it.')) return;
+  const res = await admApi('tasks', 'cancel', { task_id: Number(id), reason });
+  if(!res.success){ toast(res.message || 'Could not cancel the task', 'error'); return; }
+  closeModal('modal-manage-task');
+  toast(res.message, 'success');
+  refreshActiveView();
+}
+
+function reassignManagedTask(){
+  const t = _supTasks[document.getElementById('mt-id').value];
+  if(!t) return;
+  closeModal('modal-manage-task');
+  openPickInspector('task', t.task_id, t.assigned_to, t.task_code);
+}
+
+// ── EDIT A WORK ORDER (supervisor) ───────────────────────
+// Instructions and deadline only: severity sets the crew limit and the crew
+// has its own dialog. Reads the work order the detail view just loaded.
+let _woDetail = null;
+
+function openEditWO(){
+  const w = _woDetail;
+  if(!w) return;
+  document.getElementById('ew-id').value           = w.wo_id;
+  setText('ew-sub', `${w.wo_code} · ${w.report_title}`);
+  document.getElementById('ew-instructions').value = w.instructions || '';
+  document.getElementById('ew-deadline').value     = w.deadline ? String(w.deadline).slice(0, 10) : '';
+  openModal('modal-edit-wo');
+}
+
+async function saveEditWO(){
+  const res = await admApi('workorders', 'update_details', {
+    wo_id:        Number(document.getElementById('ew-id').value),
+    instructions: document.getElementById('ew-instructions').value.trim(),
+    deadline:     document.getElementById('ew-deadline').value
+  });
+  if(!res.success){ toast(res.message || 'Could not save the work order', 'error'); return; }
+  closeModal('modal-edit-wo');
+  toast(res.message, 'success');
+  refreshActiveView();
 }
 
 // ── REASSIGN AN INSPECTOR ────────────────────────────────
@@ -930,14 +1010,14 @@ async function renderFWQueue(){
 
   const el = document.getElementById('fw-queue-list');
   syncSortBar('fw-queue', el, true, wos.length, renderFWQueue);
-  const sorted = applySort('fw-queue', wos, 'created_at', true);
+  const sorted = lateFirst(applySort('fw-queue', wos, 'created_at', true), woOverdue);
   if(!wos.length){
     el.innerHTML='<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><p>No active tasks assigned to you</p></div>';
     return;
   }
   el.innerHTML = sorted.map(w=>`
     <div ${rowOpen(`openWODetail('${w.wo_id}')`, `queue-card${w.status==='completed'?' done':''}`)}>
-      <div class="queue-card-top"><span class="badge badge-${w.severity}">${cap(w.severity)}</span>${woStatusBadge(w.status)}<span style="font-size:12px;color:var(--muted)">${esc(w.wo_code)}</span></div>      <h4>${esc(w.report_title.toUpperCase())}</h4>
+      <div class="queue-card-top"><span class="badge badge-${w.severity}">${cap(w.severity)}</span>${woStatusBadge(w.status)}${woOverdue(w) ? overdueTag(w.deadline) : ''}<span style="font-size:12px;color:var(--muted)">${esc(w.wo_code)}</span></div>      <h4>${esc(w.report_title.toUpperCase())}</h4>
       <p>${esc(w.instructions||'No special instructions provided.')}</p>
       ${w.status==='rework' ? `<div style="margin-top:8px;padding:9px 11px;border-left:3px solid var(--red);background:rgba(239,68,68,.08);font-size:12.5px;color:var(--label);line-height:1.6"><strong style="color:var(--red)">Sent back:</strong> ${esc(w.latest_remarks || 'No reason given.')}</div>` : ''}
       ${w.crew_names && w.crew_names.includes(',') ? `<div style="font-size:11.5px;color:var(--muted);margin-top:6px">Crew: ${esc(w.crew_names)}</div>` : ''}
@@ -1362,36 +1442,79 @@ async function saveTeamDetails(){
 
 
 // ── LOGS ─────────────────────────────────────────────────
+// The period on the Activity Logs page. Starts at the last 30 days, like
+// Reports & Exports; the list and the export both follow it.
+let _alReady = false;
+function logRangePreset(v, autoLoad = true){
+  const from = $('al-from'), to = $('al-to'), now = new Date();
+  $('al-dates').classList.toggle('fb-hide', v !== 'custom');
+  if(v === 'custom') return;
+  if(v === 'all'){ from.value = ''; to.value = ''; }
+  else if(v === 'month'){
+    from.value = _ymd(new Date(now.getFullYear(), now.getMonth(), 1));
+    to.value   = _ymd(now);
+  } else {
+    const back = new Date(now); back.setDate(back.getDate() - (parseInt(v, 10) || 30));
+    from.value = _ymd(back);
+    to.value   = _ymd(now);
+  }
+  if(autoLoad) renderAdmLogs();
+}
+
+function logFilterQuery(){
+  const q = new URLSearchParams();
+  if($('al-from').value) q.set('from', $('al-from').value);
+  if($('al-to').value)   q.set('to',   $('al-to').value);
+  return q;
+}
+
 async function renderAdmLogs(){
-  const data = await admApi('logs','list&limit=200');
-  const logs = data.success ? data.data.logs : [];
+  if(!_alReady){ _alReady = true; logRangePreset($('al-range').value, false); }
+  if($('al-from').value && $('al-to').value && $('al-from').value > $('al-to').value){
+    toast('The From date is after the To date', 'error');
+    return;
+  }
+  paintLogSeal();
+  const q = logFilterQuery();
+  q.set('limit', '200');
+  const data  = await admApi('logs', 'list&' + q.toString());
+  const logs  = data.success ? data.data.logs : [];
+  const total = data.success ? data.data.total : 0;
 
   const el = $('adm-logs-list');
   // Logs carry no severity, so admin gets the date toggle only. This is the
   // one sortable list on that dashboard; Members is ordered by role on purpose.
   syncSortBar('adm-logs', el, false, logs.length, renderAdmLogs);
-  if(!logs.length){ el.innerHTML='<div class="empty-state"><p>No logs yet</p></div>'; return; }
+  if(!logs.length){ el.innerHTML='<div class="empty-state"><p>No activity in this period</p></div>'; return; }
   el.innerHTML = applySort('adm-logs', logs, 'logged_at', false).map(l=>`
     <div class="event-row">
       <div><div class="event-name">${esc(l.action)}</div><div class="event-by">by ${esc(l.user_name || 'System')}</div></div>
       <div class="event-time">${fmtDate(l.logged_at)}</div>
-    </div>`).join('');
+    </div>`).join('')
+    + (total > logs.length
+      ? `<div class="log-more">Showing the latest ${logs.length} of ${total} entries in this period. Narrow the dates, or Export to get them all.</div>`
+      : '');
 }
 
-async function clearLogs(){
-  if(!confirm('Clear all audit logs?')) return;
-  const res = await admApi('logs','clear',{});
-  if(res.success){
-    renderAdmLogs();
-    renderAdmEvents();
-    toast('Logs cleared','info');
-  }else{
-    toast(res.message || 'Failed to clear logs','error');
-  }
+// Whether the log is exactly as ConstructFlow signed it (config/logseal.php).
+async function paintLogSeal(){
+  const el = $('adm-log-seal');
+  if(!el) return;
+  const res = await admApi('logs','verify');
+  if(!res.success){ el.className = 'log-seal'; el.textContent = ''; return; }
+  const d = res.data;
+  el.className = 'log-seal ' + (d.intact ? 'ok' : 'bad');
+  el.title = d.intact ? '' : d.problems.join('\n');
+  el.textContent = d.intact
+    ? `✓ Sealed and unchanged · ${d.checked} entr${d.checked === 1 ? 'y' : 'ies'} checked`
+    : `⚠ This log was changed outside ConstructFlow. ${d.problems[0]}`
+      + (d.problems.length > 1 ? ` (+${d.problems.length - 1} more)` : '');
 }
 
 function exportRecords(){
-  window.open('api/logs.php?action=export', '_blank');
+  const q = logFilterQuery();
+  q.set('action', 'export');
+  window.open('api/logs.php?' + q.toString(), '_blank');
   toast('Preparing export…','info');
 }
 
@@ -1463,6 +1586,36 @@ function renderTaskPhotoPreview(){
 function removeTaskPhoto(index){
   window.selectedTaskPhotos.splice(index, 1);
   renderTaskPhotoPreview();
+}
+
+// Photos the inspector takes at the site check, staged until they verify.
+window.selectedSitePhotos = [];
+
+function handleSitePhotos(input){
+  [...input.files].forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      window.selectedSitePhotos.push({ file, dataUrl: e.target.result });
+      renderSitePhotoPreview();
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function renderSitePhotoPreview(){
+  const prev = document.getElementById('vf-photo-preview');
+  if(!prev) return;
+  prev.innerHTML = window.selectedSitePhotos.map((p, i) => `
+    <div class="photo-thumb-wrap">
+      <img src="${p.dataUrl}">
+      <button type="button" onclick="removeSitePhoto(${i})" title="Remove photo">×</button>
+    </div>`).join('');
+}
+
+function removeSitePhoto(index){
+  window.selectedSitePhotos.splice(index, 1);
+  renderSitePhotoPreview();
 }
 
 let gpsLat = null, gpsLng = null;
@@ -1853,6 +2006,7 @@ async function openWODetail(woId, extra = null){
   const data = await res.json();
   if(!data.success){ toast('Could not load work order details','error'); return; }
   const w = data.data.work_order;
+  _woDetail = w;
   const updates = data.data.updates || [];
   const lastUpdate = updates[0]; // API returns newest first
   const photoPaths = lastUpdate
@@ -1869,6 +2023,7 @@ async function openWODetail(woId, extra = null){
     <div class="detail-row"><span class="detail-label">Assigned To</span><span class="detail-value">${esc(w.assigned_to_name || 'Unassigned')}</span></div>
     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${woStatusBadge(w.status)}</span></div>
     ${w.status==='pending_inspector' && w.verify_inspector_name ? `<div class="detail-row"><span class="detail-label">Verifying Inspector</span><span class="detail-value">${esc(w.verify_inspector_name)}</span></div>` : ''}
+    <div class="detail-row"><span class="detail-label">Deadline</span><span class="detail-value">${w.deadline ? fmtDay(w.deadline) : 'None set'}${woOverdue(w) ? overdueTag(w.deadline) : ''}</span></div>
     <div class="detail-row"><span class="detail-label">Created</span><span class="detail-value">${fmtDate(w.created_at)}</span></div>
     ${w.updated_at?`<div class="detail-row"><span class="detail-label">Last Updated</span><span class="detail-value">${fmtDate(w.updated_at)}</span></div>`:''}
     ${w.instructions?`<div style="margin-top:14px"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Work Instructions</div><div style="font-size:13px;color:var(--label);line-height:1.6">${esc(w.instructions)}</div></div>`:''}
@@ -1877,6 +2032,7 @@ async function openWODetail(woId, extra = null){
   window.currentDetailPhotos = photoPaths; 
   setDetailActions([
     extra === 'crew' ? { label: 'Manage Crew', js: `openEditCrew('${woId}')` } : null,
+    extra === 'crew' ? { label: 'Edit Details', js: 'openEditWO()' } : null,
     extra === 'crew' && w.status === 'pending_inspector'
       ? { label: 'Change Inspector', js: `openPickInspector('verify','${woId}','${w.verify_inspector_id || ''}','${esc(w.wo_code)}')` }
       : null
@@ -2170,7 +2326,11 @@ function closeModal(id){
     const input = document.getElementById('ut-photo');
     if(input) input.value = '';
   }
-  
+
+  if(id === 'modal-verify'){
+    window.selectedSitePhotos = [];
+    renderSitePhotoPreview();
+  }
 }
 
 // ════════════════════════════════════════
@@ -2265,6 +2425,33 @@ function setText(id,v){ const e=document.getElementById(id); if(e) e.textContent
 
 // Today in the browser's own timezone as YYYY-MM-DD. toISOString() alone would
 // shift to UTC and hand back "yesterday" for anyone east of Greenwich.
+// ── OVERDUE ──────────────────────────────────────────────
+// A work order is late while the work itself is unfinished and its deadline
+// has passed; once handed in for verification the work is done. A task is
+// late while it is still waiting to be inspected.
+const WO_WORKING = ['pending', 'in_progress', 'on_hold', 'rework'];
+function woOverdue(w){
+  return !!w.deadline && WO_WORKING.includes(w.status) && String(w.deadline).slice(0, 10) < todayISO();
+}
+function taskOverdue(t){
+  return !!t.due_date && t.status === 'assigned' && String(t.due_date).slice(0, 10) < todayISO();
+}
+/** Late items first, each group keeping the order the list was sorted in. */
+function lateFirst(items, isLate){
+  return [...items.filter(isLate), ...items.filter(i => !isLate(i))];
+}
+/** The red tag, with the missed date on hover. */
+function overdueTag(due){
+  return ` <span class="tag-overdue" title="Due ${esc(fmtDay(due))}">Overdue</span>`;
+}
+/** A DATE column as a date. fmtDate() reads 'YYYY-MM-DD' as UTC midnight
+ *  and would print a time nobody entered. */
+function fmtDay(ymd){
+  if(!ymd) return '—';
+  const [y, m, d] = String(ymd).slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-PH', { month:'short', day:'numeric', year:'numeric' });
+}
+
 function todayISO(){
   const d = new Date();
   return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10);
@@ -2623,7 +2810,9 @@ async function openVerify(woId){
   const updates = data.data.updates || [];
   // The field worker's completion — not updates[0], which at the inspector
   // stage is the supervisor's approval and carries no remarks or photos.
-  const last = updates.find(u => u.status === 'pending_supervisor') || updates[0];
+  // Falls back to the worker's latest entry, never a verification step's.
+  const last = updates.find(u => u.status === 'pending_supervisor')
+            || updates.find(u => !['pending_inspector', 'pending_closure', 'completed', 'rework'].includes(u.status));
 
   document.getElementById('vf-wo-id').value = woId;
   _vfStage = w.status;
@@ -2648,13 +2837,35 @@ async function openVerify(woId){
 
   // The field worker's photos are the actual evidence the decision rests on.
   const shots = (last && last.photos) ? last.photos.map(p => p.file_path) : [];
-  window.currentDetailPhotos = shots;
   const pbox = document.getElementById('vf-photos');
   if(pbox){
     pbox.innerHTML = shots.length
       ? shots.map((src,i)=>`<img src="${esc(src)}" class="photo-view-thumb" onclick="openLightbox(window.currentDetailPhotos, ${i})"/>`).join('')
       : '<span style="font-size:12px;color:var(--muted)">No photos submitted.</span>';
   }
+
+  // At final review, what the inspector found on site. Its photos follow the
+  // field worker's in the lightbox.
+  const site = _vfStage === 'pending_closure' ? updates.find(u => u.status === 'pending_closure') : null;
+  const siteShots = (site && site.photos) ? site.photos.map(p => p.file_path) : [];
+  const sitePanel = document.getElementById('vf-site-panel');
+  if(sitePanel){
+    sitePanel.style.display = site ? '' : 'none';
+    if(site){
+      setText('vf-site-head', `Inspector's Site Check · ${site.updated_by_name || ''}`);
+      setText('vf-site-note', site.remarks || '(no remarks given)');
+      document.getElementById('vf-site-photos').innerHTML = siteShots.length
+        ? siteShots.map((src,i)=>`<img src="${esc(src)}" class="photo-view-thumb" onclick="openLightbox(window.currentDetailPhotos, ${shots.length + i})"/>`).join('')
+        : '<span style="font-size:12px;color:var(--muted)">No photos from the site check.</span>';
+    }
+  }
+  window.currentDetailPhotos = shots.concat(siteShots);
+
+  // The inspector adds their own photos at the site check.
+  const up = document.getElementById('vf-site-upload');
+  if(up) up.style.display = _vfStage === 'pending_inspector' ? '' : 'none';
+  window.selectedSitePhotos = [];
+  renderSitePhotoPreview();
 
   // Only the supervisor nominates an inspector; the inspector stage has none,
   // so the remarks box takes the full width there.
@@ -2705,13 +2916,29 @@ async function submitVerify(decision){
     return;
   }
 
+  const onSite = _vfStage === 'pending_inspector';
+  if(decision === 'approve' && onSite && !window.selectedSitePhotos.length){
+    toast('Add at least one photo of the finished work','error');
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('wo_id',    woId);
+  fd.append('decision', decision);
+  fd.append('remarks',  remarks);
+  if(inspector) fd.append('verify_inspector_id', inspector);
+  if(onSite) window.selectedSitePhotos.forEach(p => fd.append('photos[]', p.file));
+  fd.append('csrf_token', window.CSRF_TOKEN || '');
+
   const res = await fetch('api/workorders.php?action=verify', {
-    method:'POST', credentials:'include',
-    headers:{ 'Content-Type':'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
-    body: JSON.stringify({ wo_id:woId, decision, remarks, verify_inspector_id: inspector || null })
+    method:'POST', credentials:'include', body: fd
   }).then(r=>r.json()).catch(()=>({ success:false, message:'Cannot reach the server.' }));
 
   toast(res.message, res.success ? 'success' : 'error');
+  const warnings = (res.data && res.data.photo_warnings) || [];
+  if(res.success && warnings.length){
+    toast(`${warnings.length} photo${warnings.length>1?'s':''} skipped: ${warnings.join(' ')}`, 'error');
+  }
   if(res.success){
     closeModal('modal-verify');
     refreshActiveView();
@@ -3014,7 +3241,7 @@ function mountSortBar(key, anchorEl, hasSeverity, rerender){
     `<span class="sort-label">Sort by</span>
      <select class="sort-select" onchange="setSortBy('${key}', this.value)">
        ${hasSeverity ? `<option value="severity"${s.by==='severity'?' selected':''}>Severity</option>` : ''}
-       <option value="date"${s.by==='date'?' selected':''}>Date created</option>
+       <option value="date"${s.by==='date'?' selected':''}>Date</option>
      </select>
      <button class="sort-dir ${s.dir==='desc' ? 'is-desc' : 'is-asc'}" onclick="flipSortDir('${key}')"
              title="${s.dir==='desc' ? 'Highest / newest first' : 'Lowest / oldest first'}">
@@ -3184,13 +3411,13 @@ new MutationObserver(()=>{
 document.addEventListener('DOMContentLoaded', ()=>ddEnhanceAll());
 
 // ── FILTER BAR ON A PHONE ────────────────────────────────
-/* Under 720px each filter bar hides behind a Filter button and opens in an
- * overlay — the same modal as My Profile, full screen on a phone. Print
+/* Under 720px each filter bar hides behind a Filter button and opens in a
+ * small overlay. Print
  * stays on the page beside the button. The bar is moved into the overlay
  * while open and put back on close, so its ids, listeners and values are
  * the same elements throughout and every filter applies the moment it
  * changes; Done only closes. Above 720px CSS hides the toolbar and the
- * bar shows inline as it always has. */
+ * bar shows inline. */
 let _fbSeq = 0;
 function fbEnhance(bar){
   if (bar.dataset.fb) return;
