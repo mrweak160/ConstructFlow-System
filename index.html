@@ -210,7 +210,7 @@ body.landing{
 .lp-c-insp {--c:#4ade80}
 .lp-c-work {--c:#fbbf24}
 
-/* ─── ABOUT / FLOW ─── */
+/* ─── ABOUT ─── */
 /* This band carries the second site photograph. Full-bleed rather than a
    rounded panel: the hero is already a panel, and repeating that shape
    here would read as two of the same card stacked. The scrim is heavier
@@ -228,36 +228,9 @@ body.landing{
    still reads as a photograph rather than a dark smudge. */
 #about::before{content:'';position:absolute;inset:0;background:rgba(9,12,17,.80)}
 #about > *{position:relative}
-.lp-flow-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,420px);gap:56px;align-items:start}
 .lp-prose p{font-size:15px;color:#c3cde0;line-height:1.82;margin-bottom:17px;max-width:62ch}
 .lp-prose p:last-child{margin-bottom:0}
 .lp-prose em{color:#eef2f8;font-style:normal;font-weight:650}
-.lp-flow{
-  padding:26px 24px;border-radius:10px;
-  /* Same 88% as the severity ladder, for the same reason. */
-  background:rgba(22,27,39,.88);
-  border:1px solid var(--lp-line);
-}
-/* --lp-dim rather than the dimmer tier. Over the About photograph this
-   card's secondary text measured 4.38:1 even at full opacity — already
-   short of AA before any transparency was added. At --lp-dim it is 6.6:1. */
-.lp-flow-t{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--lp-dim);margin-bottom:20px}
-.lp-step{display:grid;grid-template-columns:28px 1fr;gap:14px;position:relative;padding-bottom:20px}
-.lp-step:last-child{padding-bottom:0}
-/* The connector is drawn on the step itself, not between steps, so it
-   cannot drift out of line as the text wraps. */
-.lp-step:not(:last-child)::before{
-  content:'';position:absolute;left:13.5px;top:32px;bottom:2px;width:1px;background:var(--lp-line-lit);
-}
-.lp-step i{
-  width:28px;height:28px;border-radius:6px;
-  display:grid;place-items:center;font-style:normal;
-  font-size:10.5px;font-weight:700;color:var(--lp-dim);
-  background:var(--lp-surf-2);border:1px solid var(--lp-line-lit);
-}
-.lp-step.lp-on i{background:var(--lp-acc);color:var(--lp-ink);border-color:var(--lp-acc)}
-.lp-step b{display:block;font-size:13px;font-weight:650;color:#eaf0fa}
-.lp-step span{display:block;font-size:12px;color:var(--lp-dim);line-height:1.6;margin-top:4px}
 
 /* ─── CONTACT ─── */
 /* Heading in its own column, details beside it — the layout this section
@@ -293,29 +266,11 @@ body.landing{
      under the text instead of beside it. */
   .lp-stage::before{background:rgba(9,12,17,.82)}
   .lp-stage-in{grid-template-columns:1fr;gap:38px;padding:62px 32px 66px}
-  .lp-flow-grid{grid-template-columns:1fr;gap:34px}
   .lp-two{grid-template-columns:1fr;gap:26px}
   .lp-band{padding:70px 0}
 }
 @media(max-width:720px){
   .lp-links{display:none}
-  /* The About band is far taller than it is wide on a phone, so a cover
-     crop would show a 141px slice of the 612px source blown up 2.8x —
-     an unreadable blur. The photo becomes a defined strip across the top
-     of the section instead: shown whole, slightly DOWNscaled, with the
-     heading over it and the body copy on flat colour below. The scrim
-     rides along as a flat inset fill on the same element. */
-  #about{background-image:none}
-  #about::before{
-    bottom:auto;height:218px;
-    background:#0a0d12 url("img/about-site.webp") no-repeat center;
-    background-size:cover;
-    /* .74, not lighter: the first lines of body copy run across this
-       strip, and over the photo's pale concrete they measured 3.1:1 at
-       .58 — below AA. At .74 they are 5.6:1 and the heading 8.4:1. */
-    box-shadow:inset 0 0 0 9999px rgba(9,12,17,.74);
-    border-bottom:1px solid var(--lp-line);
-  }
 }
 @media(max-width:640px){
   .lp-wrap{padding:0 16px}
@@ -445,37 +400,24 @@ body.landing{
   <!-- ═══ ABOUT ═══ -->
   <section class="lp-band" id="about">
     <div class="lp-wrap">
-      <div class="lp-flow-grid">
-        <div>
-          <div class="lp-eyebrow">About us</div>
-          <h2 style="margin-bottom:22px">A finding is not actionable until someone owns it</h2>
-          <div class="lp-prose">
-            <p>
-              Small construction teams rarely lose track of a hazard because no one noticed
-              it. They lose track because the record of it was scattered across a group chat,
-              a camera roll, and someone's recollection of what the foreman said on Tuesday.
-            </p>
-            <p>
-              ConstructFlow is built on a single principle: a finding is not actionable until
-              it carries a <em>severity</em>, an <em>owner</em>, and a <em>deadline</em>. Every
-              inspection filed in the system becomes a work order for which someone is
-              accountable, and the most hazardous items rise to the top on their own.
-            </p>
-            <p>
-              The system runs in any browser and installs to a phone, so a worker on
-              scaffolding and an owner at a desk are working from the same record.
-            </p>
-          </div>
-        </div>
-
-        <div class="lp-flow">
-          <div class="lp-flow-t">The workflow of a single finding</div>
-          <div class="lp-step"><i>1</i><div><b>Task assigned</b><span>A supervisor directs an inspector to a specified area of the site.</span></div></div>
-          <div class="lp-step"><i>2</i><div><b>Inspection filed</b><span>Photos, location data, and a record of what was observed on site.</span></div></div>
-          <div class="lp-step lp-on"><i>3</i><div><b>Severity rated</b><span>Critical, high, moderate, or low. That rating determines its position in the queue.</span></div></div>
-          <div class="lp-step"><i>4</i><div><b>Work order issued</b><span>A named crew, a designated lead, and a deadline. No work is left unassigned.</span></div></div>
-          <div class="lp-step"><i>5</i><div><b>Verified, then closed</b><span>The supervisor reviews the work and the inspector verifies it on site. Both are required before the order can close.</span></div></div>
-        </div>
+      <div class="lp-eyebrow">About us</div>
+      <h2 style="margin-bottom:22px">A finding is not actionable until someone owns it</h2>
+      <div class="lp-prose">
+        <p>
+          Small construction teams rarely lose track of a hazard because no one noticed
+          it. They lose track because the record of it was scattered across a group chat,
+          a camera roll, and someone's recollection of what the foreman said on Tuesday.
+        </p>
+        <p>
+          ConstructFlow is built on a single principle: a finding is not actionable until
+          it carries a <em>severity</em>, an <em>owner</em>, and a <em>deadline</em>. Every
+          inspection filed in the system becomes a work order for which someone is
+          accountable, and the most hazardous items rise to the top on their own.
+        </p>
+        <p>
+          The system runs in any browser and installs to a phone, so a worker on
+          scaffolding and an owner at a desk are working from the same record.
+        </p>
       </div>
     </div>
   </section>

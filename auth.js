@@ -502,12 +502,20 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
 let ctEmail = '';
 let ctPass  = '';
 
+/** A Philippine mobile number: the same rule as normalizeContactNumber() on the server. */
+const CONTACT_HINT = 'Enter a valid Philippine mobile number, e.g. 0917 123 4567.';
+function isContactNumber(v) {
+  const d = String(v).replace(/[\s\-().]/g, '');
+  return /^\+?639\d{9}$/.test(d) || /^09\d{9}$/.test(d);
+}
+
 async function ctStart() {
   const first   = el('ct-first').value.trim();
   const last    = el('ct-last').value.trim();
   const gender  = el('ct-gender').value;
   const birth   = el('ct-birth').value;
   const address = el('ct-address').value.trim();
+  const contact = el('ct-contact').value.trim();
   const email   = el('ct-email').value.trim();
 
   clearErr('ct-err-1');
@@ -515,12 +523,13 @@ async function ctStart() {
   if (!gender)              { showErr('ct-err-1', 'Select a gender option.'); return; }
   if (!birth)               { showErr('ct-err-1', 'Enter your birthdate.'); el('ct-birth').focus(); return; }
   if (address.length < 5)   { showErr('ct-err-1', 'Enter your address.'); el('ct-address').focus(); return; }
+  if (!isContactNumber(contact)) { showErr('ct-err-1', CONTACT_HINT); el('ct-contact').focus(); return; }
   if (!isEmail(email))      { showErr('ct-err-1', 'Enter a valid email address.'); return; }
 
   busy('ct-btn-1', true, 'Sending code…');
   const res = await post('register_start', {
     first_name: first, last_name: last, gender,
-    birthdate: birth, address, email,
+    birthdate: birth, address, contact_number: contact, email,
   });
   busy('ct-btn-1', false);
 
@@ -690,6 +699,9 @@ function saNext() {
   }
   if (!gender)            { showErr('sa-err-1', 'Select a gender option.'); el('sa-gender').focus(); return; }
   if (address.length < 5) { showErr('sa-err-1', 'Enter your address.'); el('sa-address').focus(); return; }
+  if (!isContactNumber(el('sa-contact').value)) {
+    showErr('sa-err-1', CONTACT_HINT); el('sa-contact').focus(); return;
+  }
 
   gotoStep('sa', 2);
 }
@@ -715,6 +727,7 @@ async function saComplete() {
     birthdate:  el('sa-birth').value,
     gender:     el('sa-gender').value,
     address:    el('sa-address').value.trim(),
+    contact_number: el('sa-contact').value.trim(),
     password: pass,
     confirm_password: confirm,
     terms_accepted: true,
@@ -727,7 +740,7 @@ async function saComplete() {
     // Every detail field lives on step 1, but the whole payload is only sent
     // from step 2, so a complaint about one of them has to be shown back on
     // step 1 or the user is told to fix something they cannot see.
-    if (/\b(name|names|birthdate|gender|address)\b/i.test(res.message)) {
+    if (/\b(name|names|birthdate|gender|address|mobile)\b/i.test(res.message)) {
       clearErr('sa-err-2');
       gotoStep('sa', 1);
       showErr('sa-err-1', res.message);

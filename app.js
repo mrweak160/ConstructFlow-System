@@ -257,7 +257,7 @@ function wlPaint(prefix, d){
 
   document.getElementById(prefix + '-wl-body').innerHTML = `
     <div class="section-header wl-head">
-      <div class="section-title">Field Inspectors${infoIcon(`<strong>How the score works.</strong> Each finished job is worth points by severity — low \${esc(w.low)}, moderate \${esc(w.moderate)}, high \${esc(w.high)}, critical \${esc(w.critical)}. \${esc(d.weight_note)} Only closed work orders count for field workers; an inspector's unit of work is a submitted report.`, 'How the score works')}</div>
+      <div class="section-title">Field Inspectors${infoIcon(`<strong>How the score works</strong><span class="info-formula">Score = (Low × ${esc(w.low)}) + (Moderate × ${esc(w.moderate)}) + (High × ${esc(w.high)}) + (Critical × ${esc(w.critical)})</span>Example: 2 Low + 1 Critical = ${esc(2 * w.low)} + ${esc(w.critical)} = <strong>${esc(2 * w.low + Number(w.critical))} points</strong><br>Field workers score from closed work orders; inspectors from submitted reports.`, 'How the score works')}</div>
       <div style="font-size:12px;color:var(--muted)">
         ${esc(d.totals.inspector_reports)} reports submitted · ${esc(d.totals.inspector_points)} points
       </div>
@@ -1096,6 +1096,37 @@ document.addEventListener('click', () => {
   document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open'));
 });
 
+// ── MEMBER PROFILE (admin) ───────────────────────────────
+/** 09171234567 -> 0917 123 4567. Anything else is shown as stored. */
+function formatContact(n){
+  const s = String(n || '');
+  return /^09\d{9}$/.test(s) ? `${s.slice(0,4)} ${s.slice(4,7)} ${s.slice(7)}` : s;
+}
+const GENDER_LABEL = { male:'Male', female:'Female', other:'Other', prefer_not_to_say:'Prefer not to say' };
+/** Built from its parts: new Date('YYYY-MM-DD') is read as UTC and can land
+ *  on the previous day in local time. */
+function fmtBirthdate(ymd){
+  if(!ymd) return '—';
+  const [y, m, d] = String(ymd).split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-PH', { month:'long', day:'numeric', year:'numeric' });
+}
+async function openMemberProfile(userId){
+  const res = await admApi('teams', 'member_profile&user_id=' + encodeURIComponent(userId));
+  if(!res.success){ toast(res.message || 'Could not load this profile', 'error'); return; }
+  const p = res.data.member;
+  document.getElementById('mp-av').className = 'avatar ' + (ADM_ROLE_AV[p.role] || 'av-amber');
+  paintAvatar('mp-av', p.name, p.avatar_path);
+  setText('mp-name',    p.name);
+  setText('mp-role',    ADM_ROLE_LABEL[p.role] || cap(p.role));
+  setText('mp-email',   p.email);
+  setText('mp-contact', formatContact(p.contact_number) || 'Not provided');
+  setText('mp-gender',  GENDER_LABEL[p.gender] || '—');
+  setText('mp-birth',   fmtBirthdate(p.birthdate));
+  setText('mp-address', p.address || '—');
+  setText('mp-joined',  p.joined_at ? fmtDate(p.joined_at) : '—');
+  openModal('modal-member');
+}
+
 // ── MEMBERS ──────────────────────────────────────────────
 async function renderAdmMembers(){
   const [res, inv] = await Promise.all([
@@ -1123,7 +1154,7 @@ async function renderAdmMembers(){
       : `<span class="adm-actions"><span class="adm-actions-slot"><button class="action-link" onclick="openAssignRole(${m.user_id})">Change role</button></span>`
         + `<button class="action-link" style="color:var(--red)" onclick="removeMember(${m.user_id})">Remove</button></span>`;
         
-        return `<tr>
+        return `<tr ${rowOpen(`openMemberProfile(${m.user_id})`)}>
       <td><div style="display:flex;align-items:center;gap:10px">
                 ${avatarHtml(m.name, m.avatar_path, ADM_ROLE_AV[m.role]||'av-amber', 28, 11)}
         <div>
@@ -1147,7 +1178,7 @@ async function renderAdmMembers(){
       : `<button class="action-link" onclick="openAssignRole(${m.user_id})">Change role</button>` +
         ` <button class="action-link" style="color:var(--red);margin-left:14px" onclick="removeMember(${m.user_id})">Remove</button>`;
 
-    return `<div class="m-card">
+    return `<div ${rowOpen(`openMemberProfile(${m.user_id})`, 'm-card')}>
       <div class="m-card-top">
         <div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1">
           ${avatarHtml(m.name, m.avatar_path, ADM_ROLE_AV[m.role]||'av-amber', 30, 12)}
@@ -1931,11 +1962,13 @@ function paintProfile(){
   document.getElementById('prof-role').textContent = roleLabel;
 
   setText('prof-view-email', currentUser.email);
+  setText('prof-view-contact', formatContact(currentUser.contact_number) || 'Not set');
   setText('prof-view-role',  roleLabel);
   setText('prof-view-team',  currentUser.teamName || '—');
 
   document.getElementById('prof-name-inp').value  = currentUser.name;
   document.getElementById('prof-email-inp').value = currentUser.email;
+  document.getElementById('prof-contact-inp').value = formatContact(currentUser.contact_number);
   document.getElementById('prof-curpass').value   = '';
   document.getElementById('prof-pass').value      = '';
 }
@@ -2075,19 +2108,21 @@ async function saveProfile(){
 
   if(!newName){ toast('Name cannot be empty','error'); return; }
 
-  if(newName !== currentUser.name){
+  const newContact = document.getElementById('prof-contact-inp').value.trim();
+  if(newName !== currentUser.name || newContact !== formatContact(currentUser.contact_number)){
     const nameRes  = await fetch('api/users.php?action=self_edit', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': window.CSRF_TOKEN || '' },
-      body: JSON.stringify({ name: newName })
+      body: JSON.stringify({ name: newName, contact_number: newContact })
     });
     const nameData = await nameRes.json();
     if(!nameData.success){
-      toast(nameData.message || 'Failed to update name', 'error');
+      toast(nameData.message || 'Failed to update profile', 'error');
       return;
     }
     currentUser.name = newName;
+    currentUser.contact_number = nameData.data.contact_number;
   }
 
   // Update password only if the user filled in both fields

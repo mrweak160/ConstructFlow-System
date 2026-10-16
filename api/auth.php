@@ -24,6 +24,7 @@ if ($method === 'POST' && $action === 'register_start') {
     $gender    = clean($body['gender']     ?? '');
     $birth     = clean($body['birthdate']  ?? '');
     $address   = clean($body['address']    ?? '');
+    $contact   = normalizeContactNumber(clean($body['contact_number'] ?? ''));
     $email     = strtolower(clean($body['email'] ?? ''));
 
     if (!$firstName || !$lastName || !$gender) {
@@ -53,6 +54,9 @@ if ($method === 'POST' && $action === 'register_start') {
     }
     if (mb_strlen($address) > 255) {
         json_response(false, 'Address is too long (255 characters max).', [], 400);
+    }
+    if ($contact === null) {
+        json_response(false, CONTACT_NUMBER_ERROR, [], 400);
     }
 
     if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -98,9 +102,9 @@ if ($method === 'POST' && $action === 'register_start') {
 
     $db->prepare(
         'INSERT INTO PendingRegistrations
-         (first_name, last_name, gender, birthdate, address, email, code_hash, expires_at, resend_count)
-        VALUES (?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE), ?)'
-    )->execute([$firstName, $lastName, $gender, $birth, $address, $email, $codeHash, CODE_TTL_MINUTES, $carry]);
+         (first_name, last_name, gender, birthdate, address, contact_number, email, code_hash, expires_at, resend_count)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? MINUTE), ?)'
+    )->execute([$firstName, $lastName, $gender, $birth, $address, $contact, $email, $codeHash, CODE_TTL_MINUTES, $carry]);
     sendMail($email, $fullName, 'Verify your email — ConstructFlow', registrationCodeEmailBody($fullName, $code));
 
     json_response(true, 'A 6-character verification code has been sent to your email.', ['email' => $email]);
@@ -243,9 +247,9 @@ if ($method === 'POST' && $action === 'register_complete') {
         // account_type 'owner'
         $db->prepare(
             'INSERT INTO Users
-             (name, gender, birthdate, address, email, password_hash, email_verified_at, account_type, terms_accepted_at)
-             VALUES (?, ?, ?, ?, ?, ?, NOW(), "owner", NOW())'
-        )->execute([$fullName, $pending['gender'], $pending['birthdate'], $pending['address'], $email, $hash]);
+             (name, gender, birthdate, address, contact_number, email, password_hash, email_verified_at, account_type, terms_accepted_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), "owner", NOW())'
+        )->execute([$fullName, $pending['gender'], $pending['birthdate'], $pending['address'], $pending['contact_number'], $email, $hash]);
         $userId = (int)$db->lastInsertId();
         if ($teamName !== '') {
             $db->prepare(
@@ -315,7 +319,7 @@ if ($method === 'GET' && $action === 'invite_lookup') {
 }
 
 // ── POST ?action=invite_accept ───────────────────────────────
-// Body: { token, first_name, last_name, birthdate, gender, address, password, confirm_password }
+// Body: { token, first_name, last_name, birthdate, gender, address, contact_number, password, confirm_password }
 if ($method === 'POST' && $action === 'invite_accept') {
     $body      = getBody();
     $token     = clean($body['token']      ?? '');
@@ -324,6 +328,7 @@ if ($method === 'POST' && $action === 'invite_accept') {
     $birth     = clean($body['birthdate']  ?? '');
     $gender    = clean($body['gender']     ?? '');
     $address   = clean($body['address']    ?? '');
+    $contact   = normalizeContactNumber(clean($body['contact_number'] ?? ''));
     $pass      = $body['password']         ?? '';
     $confirm   = $body['confirm_password'] ?? '';
     $termsAccepted = (bool)($body['terms_accepted'] ?? false);
@@ -363,6 +368,9 @@ if ($method === 'POST' && $action === 'invite_accept') {
     if (mb_strlen($address) > 255) {
         json_response(false, 'Address is too long (255 characters max).', [], 400);
     }
+    if ($contact === null) {
+        json_response(false, CONTACT_NUMBER_ERROR, [], 400);
+    }
     if (!$pass || !$confirm) {
         json_response(false, 'Password and confirmation are required.', [], 400);
     }
@@ -388,9 +396,9 @@ if ($method === 'POST' && $action === 'invite_accept') {
     try {
         $db->prepare(
             'INSERT INTO Users
-             (name, gender, birthdate, address, email, password_hash, email_verified_at, account_type, terms_accepted_at)
-             VALUES (?, ?, ?, ?, ?, ?, NOW(), "member", NOW())'
-        )->execute([$fullName, $gender, $birth, $address, $inv['email'], $hash]);
+             (name, gender, birthdate, address, contact_number, email, password_hash, email_verified_at, account_type, terms_accepted_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), "member", NOW())'
+        )->execute([$fullName, $gender, $birth, $address, $contact, $inv['email'], $hash]);
         $userId = (int)$db->lastInsertId();
 
         $db->prepare(
@@ -589,6 +597,7 @@ if ($method === 'GET' && $action === 'me') {
             // to pick which of the three gate screens to show.
             'account_type' => $user['account_type'],
             'avatar_path'  => $user['avatar_path'],
+            'contact_number' => $user['contact_number'],
         ],
         'memberships'    => $memberships,
         'active_team_id' => $membership['team_id'] ?? null,
@@ -805,7 +814,7 @@ if ($method === 'POST' && $action === 'delete_account') {
             $db->prepare(
                 'UPDATE Users
                     SET name = ?, email = ?, password_hash = ?,
-                        gender = "prefer_not_to_say", birthdate = NULL, address = NULL,
+                        gender = "prefer_not_to_say", birthdate = NULL, address = NULL, contact_number = NULL,
                         avatar_path = NULL, is_active = 0,
                         email_verified_at = NULL, terms_accepted_at = NULL
                   WHERE user_id = ?'

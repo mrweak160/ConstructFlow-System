@@ -173,6 +173,10 @@
           <span class="prof-value" id="prof-view-email">&mdash;</span>
         </div>
         <div class="prof-row">
+          <span class="prof-label">Contact number</span>
+          <span class="prof-value" id="prof-view-contact">&mdash;</span>
+        </div>
+        <div class="prof-row">
           <span class="prof-label">Role</span>
           <span class="prof-value" id="prof-view-role">&mdash;</span>
         </div>
@@ -185,6 +189,7 @@
       <!-- EDIT FORM — hidden until Edit Profile is pressed -->
       <div id="prof-edit" style="display:none">
         <div class="form-group"><label>Full Name</label><input class="form-control" id="prof-name-inp"/></div>
+        <div class="form-group"><label>Contact Number</label><input class="form-control" type="tel" inputmode="tel" id="prof-contact-inp" maxlength="20" placeholder="0917 123 4567"/></div>
         <div class="form-group" style="margin-bottom:0">
           <label>Email <span class="info-wrap"><button type="button" class="info-btn" aria-expanded="false" aria-label="About your email and role" onclick="toggleInfo(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-5"/><path d="M12 8h.01"/></svg></button><span class="info-pop" role="note" hidden>Your email identifies your account and cannot be changed here. Your role is set through team management, not from this form.</span></span></label>
           <input class="form-control" id="prof-email-inp" disabled/>

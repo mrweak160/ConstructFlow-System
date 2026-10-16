@@ -2,6 +2,16 @@
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/mailer.php';
 
+// ── TIME ZONE ────────────────────────────────────────────────
+// Every time the system records or compares is Philippine time, whatever
+// the host's own clocks are set to: the live database's server zone, and
+// PHP's date.timezone, are both set independently of this app. getDB()
+// keeps one connection per request, so the session setting holds for it.
+// An offset rather than 'Asia/Manila': named zones need MySQL's time-zone
+// tables, which shared hosts do not always load. Manila has no DST.
+date_default_timezone_set('Asia/Manila');
+getDB()->exec("SET time_zone = '+08:00'");
+
 // ── TEAM ROLES ───────────────────────────────────────────────
 const TEAM_ROLES     = ['administrator', 'supervisor', 'field_inspector', 'field_worker', 'member'];
 
@@ -42,7 +52,7 @@ function currentUser(): ?array {
     }
 
     $stmt = getDB()->prepare(
-        'SELECT user_id, name, email, is_active, email_verified_at, account_type, avatar_path
+        'SELECT user_id, name, email, is_active, email_verified_at, account_type, avatar_path, contact_number
          FROM Users WHERE user_id = ? LIMIT 1'
     );
 
@@ -60,6 +70,7 @@ function currentUser(): ?array {
         'email'         => $row['email'],
         'account_type'  => $row['account_type'],
         'avatar_path'   => $row['avatar_path'],
+        'contact_number'=> $row['contact_number'],
         'active_team_id'=> $_SESSION['active_team_id'] ?? null,
     ];
 }
@@ -416,6 +427,20 @@ function capitalizeWords(string $name): string {
         fn($m) => $m[1] . mb_strtoupper($m[2]),
         $name
     );
+}
+
+// ── CONTACT NUMBER ───────────────────────────────────────────
+const CONTACT_NUMBER_ERROR = 'Enter a valid Philippine mobile number, e.g. 0917 123 4567.';
+
+/**
+ * A Philippine mobile number in one stored shape, 09XXXXXXXXX, or null if
+ * the input is not one. Spaces, dashes, dots and brackets are ignored, and
+ * the +63 / 63 country-code forms are accepted.
+ */
+function normalizeContactNumber(string $raw): ?string {
+    $d = preg_replace('/[\s\-().]/', '', $raw);
+    if (preg_match('/^\+?63(9\d{9})$/', $d, $m)) return '0' . $m[1];
+    return preg_match('/^09\d{9}$/', $d) ? $d : null;
 }
 
 /* no 1 letter name */

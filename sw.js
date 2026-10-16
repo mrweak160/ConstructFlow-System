@@ -1,4 +1,4 @@
-const CACHE = 'constructflow-v111';
+const CACHE = 'constructflow-v120';
 const ASSETS = [
   './',
   './index.html',

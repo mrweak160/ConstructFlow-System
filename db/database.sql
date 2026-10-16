@@ -61,6 +61,7 @@ CREATE TABLE Users (
                     NOT NULL DEFAULT 'prefer_not_to_say',
   birthdate         DATE          DEFAULT NULL,
   address           VARCHAR(255)  DEFAULT NULL,
+  contact_number    VARCHAR(20)   DEFAULT NULL,  -- PH mobile, stored as 09XXXXXXXXX
   email             VARCHAR(150)  NOT NULL UNIQUE,
   email_verified_at DATETIME      DEFAULT NULL,
   account_type      ENUM('owner','member') NOT NULL DEFAULT 'member',
@@ -84,6 +85,7 @@ CREATE TABLE PendingRegistrations (
   gender         ENUM('male','female','other','prefer_not_to_say') NOT NULL,
   birthdate      DATE         DEFAULT NULL,
   address        VARCHAR(255) DEFAULT NULL,
+  contact_number VARCHAR(20)  DEFAULT NULL,
   email          VARCHAR(150) NOT NULL UNIQUE,
   code_hash      CHAR(64)     NOT NULL,
   attempts       TINYINT UNSIGNED NOT NULL DEFAULT 0,

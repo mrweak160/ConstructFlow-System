@@ -54,7 +54,18 @@ if ($method === 'GET' && $action === 'list') {
 // ── POST ?action=self_edit ───────────────────────────────────
 if ($method === 'POST' && $action === 'self_edit') {
     $user = requireAuth();
-    $name = capitalizeWords(clean(getBody()['name'] ?? ''));
+    $body = getBody();
+    $name = capitalizeWords(clean($body['name'] ?? ''));
+
+    // Optional here: accounts made before the field existed have none, and
+    // an empty box leaves it unset. Only touched when the form sent it, so
+    // a caller that edits the name alone cannot wipe it.
+    $hasContact = array_key_exists('contact_number', $body);
+    $rawContact = clean($body['contact_number'] ?? '');
+    $contact    = $rawContact === '' ? null : normalizeContactNumber($rawContact);
+    if ($hasContact && $rawContact !== '' && $contact === null) {
+        json_response(false, CONTACT_NUMBER_ERROR, [], 400);
+    }
 
     if (!$name) {
         json_response(false, 'Name cannot be empty.', [], 400);
@@ -66,13 +77,21 @@ if ($method === 'POST' && $action === 'self_edit') {
         json_response(false, 'Name is too long.', [], 400);
     }
 
-    getDB()->prepare('UPDATE Users SET name = ? WHERE user_id = ?')
-           ->execute([$name, $user['user_id']]);
+    if ($hasContact) {
+        getDB()->prepare('UPDATE Users SET name = ?, contact_number = ? WHERE user_id = ?')
+               ->execute([$name, $contact, $user['user_id']]);
+    } else {
+        getDB()->prepare('UPDATE Users SET name = ? WHERE user_id = ?')
+               ->execute([$name, $user['user_id']]);
+    }
 
     logActivity($user['user_id'], 'self_edit', 'user', $user['user_id'],
         "{$user['name']} changed their display name to '$name'.");
 
-    json_response(true, 'Name updated successfully.', ['name' => $name]);
+    json_response(true, 'Profile updated.', [
+        'name'           => $name,
+        'contact_number' => $hasContact ? $contact : ($user['contact_number'] ?? null),
+    ]);
 }
 
 // ── POST ?action=avatar_upload ───────────────────────────────

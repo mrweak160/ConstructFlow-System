@@ -264,6 +264,8 @@ td.num{white-space:nowrap}
 .eng-pair i{color:var(--muted);font-style:normal;font-size:var(--t-small);text-transform:uppercase;margin-right:1mm}
 
 /* ── Photos ───────────────────────────────────────────────── */
+/* Page two's running head: which document this page belongs to. */
+.doc-cont{font-size:var(--t-small);padding-bottom:1.2mm;margin-bottom:1.6mm;border-bottom:1.5pt double var(--ink)}
 .shots{display:grid;grid-template-columns:repeat(4,1fr);gap:1.5mm}
 .shots figure{break-inside:avoid}
 .shots img{width:100%;height:26mm;object-fit:cover;border:1px solid var(--ink);display:block}
@@ -298,6 +300,7 @@ td.num{white-space:nowrap}
   /* The @page box already is the printable area, so the page fills it and
      fitToPage()'s zoom applies here exactly as it does on screen. */
   .page{width:auto}
+  .sheet + .sheet{break-before:page}   /* the photo page */
   .sec{break-inside:auto}          /* let long tables flow across pages */
   .kv,.engine,.doc-status,.signs{break-inside:avoid}
   a{text-decoration:none;color:inherit}

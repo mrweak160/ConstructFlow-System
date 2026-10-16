@@ -360,6 +360,28 @@ if ($method === 'GET' && $action === 'members') {
     ]);
 }
 
+// ── GET ?action=member_profile&user_id=… ─────────────────────
+// The details a member gave when they joined, for the administrator who
+// invited them and answers for the team. Nobody else is shown a
+// colleague's birthdate, address or phone number.
+if ($method === 'GET' && $action === 'member_profile') {
+    $m      = requireTeamRole('administrator');
+    $userId = (int)($_GET['user_id'] ?? 0);
+
+    $stmt = getDB()->prepare(
+        'SELECT u.user_id, u.name, u.email, u.avatar_path, u.gender, u.birthdate,
+                u.address, u.contact_number, tm.role, tm.joined_at
+           FROM TeamMembers tm JOIN Users u ON u.user_id = tm.user_id
+          WHERE tm.team_id = ? AND tm.user_id = ? AND tm.status = "active" LIMIT 1'
+    );
+    $stmt->execute([$m['team_id'], $userId]);
+    $p = $stmt->fetch();
+    if (!$p) {
+        json_response(false, 'That person is not an active member of this team.', [], 404);
+    }
+    json_response(true, 'Member profile.', ['member' => $p]);
+}
+
 // ── POST ?action=assign_role ─────────────────────────────────
 if ($method === 'POST' && $action === 'assign_role') {
     $m    = requireTeamRole('administrator');

@@ -395,11 +395,13 @@ tbody td:has(> .action-link) .action-link+.action-link{margin-left:3px}
 /* TASK PANEL */
 
 /* ADMIN */
-.chip{display:inline-block;padding:3px 9px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.3px;line-height:1.5;white-space:nowrap}
-.chip-admin{background:rgba(239,68,68,.12);color:#f87171}
-.chip-sup{background:rgba(59,130,246,.12);color:#60a5fa}
-.chip-insp{background:rgba(34,197,94,.12);color:#4ade80}
-.chip-worker{background:rgba(234,179,8,.12);color:#facc15}
+/* Role chips: the role's colour on plain text, no fill and no border. No
+   padding either, so the word lines up with the column heading. */
+.chip{display:inline-block;padding:0;border:none;background:none;font-size:11px;font-weight:700;letter-spacing:.3px;line-height:1.5;white-space:nowrap}
+.chip-admin{color:#f87171}
+.chip-sup{color:#60a5fa}
+.chip-insp{color:#4ade80}
+.chip-worker{color:#facc15}
 /* A flex row of "text block" + "actions". Without min-width:0 the text block
    refuses to shrink below a long email address, which pushed the Cancel button
    outside the card on narrow screens. */
@@ -536,6 +538,10 @@ select.form-control{-webkit-appearance:none;cursor:pointer}
 /* Flipped when the panel would otherwise run off the right of the window. */
 .info-wrap.info-right .info-pop{left:auto;right:0}
 .widget-title .info-wrap{margin-left:6px}
+/* A formula inside an explanation: set off on its own line, in the body
+   colour, so it reads as the rule and the prose around it as the gloss. */
+.info-formula{display:block;margin:7px 0;padding:7px 9px;border-radius:var(--r-sm);
+  background:var(--bg);color:var(--text);font-weight:600;line-height:1.5}
 /* A panel clips its contents; an open explanation has to get out. */
 .widget:has(.info-pop:not([hidden])){overflow:visible}
 .filter-bar .form-hint{align-self:center;margin-left:auto}

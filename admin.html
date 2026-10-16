@@ -385,6 +385,10 @@
           <span class="prof-value" id="prof-view-email">&mdash;</span>
         </div>
         <div class="prof-row">
+          <span class="prof-label">Contact number</span>
+          <span class="prof-value" id="prof-view-contact">&mdash;</span>
+        </div>
+        <div class="prof-row">
           <span class="prof-label">Role</span>
           <span class="prof-value" id="prof-view-role">&mdash;</span>
         </div>
@@ -397,6 +401,7 @@
       <!-- EDIT FORM — hidden until Edit Profile is pressed -->
       <div id="prof-edit" style="display:none">
         <div class="form-group"><label>Full Name</label><input class="form-control" id="prof-name-inp"/></div>
+        <div class="form-group"><label>Contact Number</label><input class="form-control" type="tel" inputmode="tel" id="prof-contact-inp" maxlength="20" placeholder="0917 123 4567"/></div>
         <div class="form-group" style="margin-bottom:0">
           <label>Email <span class="info-wrap"><button type="button" class="info-btn" aria-expanded="false" aria-label="About your email and role" onclick="toggleInfo(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-5"/><path d="M12 8h.01"/></svg></button><span class="info-pop" role="note" hidden>Your email identifies your account and cannot be changed here. Your role is set through team management, not from this form.</span></span></label>
           <input class="form-control" id="prof-email-inp" disabled/>
@@ -419,6 +424,32 @@
       <button class="btn btn-amber" id="prof-edit-btn" onclick="profileEdit()">Edit Profile</button>
       <button class="btn btn-dark"  id="prof-cancel-btn" style="display:none"  onclick="profileView()">Cancel</button>
       <button class="btn btn-amber" id="prof-save-btn"   style="display:none"  onclick="saveProfile()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MEMBER PROFILE (admin) ══════════════════════════════ -->
+<div class="overlay" id="modal-member">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2>Member Profile</h2><p>The details this member gave when they joined.</p></div>
+      <button class="btn-close" onclick="closeModal('modal-member')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="prof-head">
+        <div class="avatar-wrap"><div class="avatar" id="mp-av" style="width:64px;height:64px;font-size:24px"></div></div>
+        <div class="prof-head-name" id="mp-name"></div>
+        <div class="prof-head-role" id="mp-role"></div>
+      </div>
+      <div class="prof-row"><span class="prof-label">Email</span><span class="prof-value" id="mp-email">&mdash;</span></div>
+      <div class="prof-row"><span class="prof-label">Contact number</span><span class="prof-value" id="mp-contact">&mdash;</span></div>
+      <div class="prof-row"><span class="prof-label">Gender</span><span class="prof-value" id="mp-gender">&mdash;</span></div>
+      <div class="prof-row"><span class="prof-label">Birthdate</span><span class="prof-value" id="mp-birth">&mdash;</span></div>
+      <div class="prof-row"><span class="prof-label">Address</span><span class="prof-value" id="mp-address">&mdash;</span></div>
+      <div class="prof-row"><span class="prof-label">Joined</span><span class="prof-value" id="mp-joined">&mdash;</span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-member')">Close</button>
     </div>
   </div>
 </div>
