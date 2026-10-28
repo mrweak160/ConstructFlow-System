@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#f59e0b"/>
 <link rel="manifest" href="manifest.json"/>
 <title>ConstructFlow — Team Administration</title>
+<!-- Light or dark, before the first paint (the switch is in the settings menu). -->
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('cf_theme')==='dark'?'dark':'light'}catch(e){}</script>
 <link rel="stylesheet" href="style.css"/>
 <link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
 <link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
@@ -89,6 +91,7 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
 
       <div class="sidebar-signout">
         <div style="padding:0 4px 10px;font-size:11px;text-align:center">
+          <a href="guide.html" style="display:inline-block;margin-bottom:6px;color:var(--muted);text-decoration:none">How severity works</a><br>
           <a href="terms.html" style="color:var(--muted);text-decoration:none">Terms</a>
           <span style="color:var(--muted)"> &middot; </span>
           <a href="privacy.html" style="color:var(--muted);text-decoration:none">Privacy</a>
@@ -124,6 +127,7 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
             <div class="menu" id="adm-settings-menu">
               <button class="menu-item" onclick="openSettings('team')">Team Settings</button>
               <button class="menu-item" onclick="openSettings('profile')">My Profile</button>
+              <button class="menu-item menu-toggle" role="switch" aria-checked="false" data-theme-switch onclick="toggleTheme()"><span>Dark mode</span><span class="switch"></span></button>
               <div style="height:1px;background:var(--border);margin:4px 0"></div>
               <button class="menu-item" style="color:var(--red)" onclick="doSignout()">Sign Out</button>
             </div>
@@ -183,6 +187,15 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
             <div id="adm-invite-list"></div>
           </div>
 
+          <!-- People removed from the team, folded away. Their names stay on
+               what they recorded; the trash button erases their other
+               personal details. Hidden while there are none. -->
+          <details class="widget former-card" id="adm-former-card" style="display:none">
+            <summary><div><div class="widget-title">Former members · <span id="adm-former-count">0</span></div>
+              <div class="former-sub">Removed from the team. Their names stay on the reports and work orders they made.</div></div></summary>
+            <div id="adm-former-list"></div>
+          </details>
+
           <div class="table-wrap">
             <table>
               <thead><tr><th>Member</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead>
@@ -239,6 +252,21 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
           <!-- Inspection reports / work orders share one pane. -->
           <div id="ar-pane-summary">
             <div class="stats-panel" id="ar-stats"></div>
+            <!-- Charts (charts.js): severity, status, and the trend per week. -->
+            <div class="chart-grid">
+              <div class="widget">
+                <div class="widget-header"><div><div class="widget-title" id="ar-ch-sev-title">Reports by severity</div><div class="chart-sub" id="ar-ch-sev-sub"></div></div></div>
+                <div id="ar-ch-sev" data-chart></div>
+              </div>
+              <div class="widget">
+                <div class="widget-header"><div><div class="widget-title" id="ar-ch-status-title">Reports by status</div><div class="chart-sub" id="ar-ch-status-sub"></div></div></div>
+                <div id="ar-ch-status" data-chart></div>
+              </div>
+              <div class="widget chart-wide">
+                <div class="widget-header"><div><div class="widget-title" id="ar-ch-trend-title">Reports over time</div><div class="chart-sub" id="ar-ch-trend-sub"></div></div></div>
+                <div id="ar-ch-trend" data-chart></div>
+              </div>
+            </div>
             <div class="section-header" style="margin-top:4px">
               <div class="section-title" id="ar-table-title">Inspection Reports</div>
               <button class="btn btn-sm btn-amber" onclick="admPrintSummary()">Print / Save as PDF</button>
@@ -408,6 +436,53 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
   </div>
 </div>
 
+<!-- Erase a former member's personal details. Cannot be undone, so the
+     administrator confirms with their own password. -->
+<div class="overlay" id="modal-erase-member">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <div><h2>Erase personal details</h2><p id="em-sub">&mdash;</p></div>
+      <button class="btn-close" onclick="closeModal('modal-erase-member')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="em-id"/>
+      <p class="em-text">This permanently erases <b id="em-name"></b>'s email, contact number, address, birthdate and photo, and closes their login for good. It cannot be undone.</p>
+      <p class="em-text">Their name stays on the reports, work orders and log entries they made, marked “(deleted)”, so the records still show who did the work.</p>
+      <div class="form-group" style="margin-bottom:0">
+        <label for="em-pass">Your password</label>
+        <input type="password" class="form-control" id="em-pass" autocomplete="current-password" onkeydown="if(event.key==='Enter') confirmEraseMember()"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-erase-member')">Cancel</button>
+      <button class="btn btn-danger-solid" onclick="confirmEraseMember()">Erase</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete the team. Only its last member, an administrator, can; it asks
+     for their password because it cannot be undone. -->
+<div class="overlay" id="modal-delete-team">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <div><h2>Delete team</h2><p id="dt-sub">&mdash;</p></div>
+      <button class="btn-close" onclick="closeModal('modal-delete-team')">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="em-text"><b id="dt-name"></b> will be closed for good. Nobody can open it again, and any invitations not yet accepted stop working.</p>
+      <p class="em-text">Its reports, work orders and activity log are kept on record, not erased. Afterwards you can create or join another team.</p>
+      <div class="form-group" style="margin-bottom:0">
+        <label for="dt-pass">Your password</label>
+        <input type="password" class="form-control" id="dt-pass" autocomplete="current-password" onkeydown="if(event.key==='Enter') confirmDeleteTeam()"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-delete-team')">Cancel</button>
+      <button class="btn btn-danger-solid" onclick="confirmDeleteTeam()">Delete team</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ PROFILE MODAL ═════════════════════════════════════ -->
 <div class="overlay" id="modal-profile">
   <div class="modal">
@@ -564,8 +639,13 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
         Nobody removes themselves, including administrators. Ask another
         administrator to remove you from the Members page. If you are the
         only administrator, make someone else one first — a team is never
-        allowed to be left without one.
+        allowed to be left without one. The team's owner cannot be removed
+        or have their role changed; the team ends only when it is deleted.
       </p>
+
+      <div class="section-title" style="margin-top:18px">Delete this team</div>
+      <p class="team-del-text" id="team-del-note">&mdash;</p>
+      <button class="btn btn-danger" id="team-del-btn" onclick="openDeleteTeam()">Delete team</button>
     </div>
     <div class="modal-footer">
       <button class="btn btn-dark"  id="team-close-btn"onclick="closeModal('modal-team')">Close</button>
@@ -586,6 +666,33 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
   </div>
 </div>
 
+<!-- One report or work order, read-only. The administrator saves the record
+     itself, or the whole case file (task, report and work order together). -->
+<div class="overlay" id="modal-report-detail">
+  <div class="modal">
+    <div class="modal-header">
+      <div><h2 id="rd-title">Report Detail</h2><p id="rd-id">REP-000</p></div>
+      <button class="btn-close" onclick="closeModal('modal-report-detail')">×</button>
+    </div>
+    <div class="modal-body" id="rd-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-dark" onclick="closeModal('modal-report-detail')">Close</button>
+      <span id="rd-actions"></span>
+      <button class="btn btn-dark" data-print-btn="self" style="display:none" onclick="openPrint('self')">Save as PDF</button>
+      <button class="btn btn-amber" data-print-btn="case" style="display:none" onclick="openPrint('case')">Full case file</button>
+    </div>
+  </div>
+</div>
+
+<div class="lightbox-overlay" id="lightbox-overlay" onclick="if(event.target===this) closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()">×</button>
+  <div class="lightbox-counter" id="lightbox-counter"></div>
+  <button class="lightbox-arrow prev" id="lightbox-prev" onclick="lightboxNav(-1)">‹</button>
+  <div class="lightbox-track" id="lightbox-track"></div>
+  <button class="lightbox-arrow next" id="lightbox-next" onclick="lightboxNav(1)">›</button>
+</div>
+
+<script src="charts.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

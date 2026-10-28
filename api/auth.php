@@ -683,30 +683,8 @@ if ($method === 'POST' && $action === 'change_password') {
 // ACCOUNT DELETION
 // ════════════════════════════════════════════════════════════
 
-/**
- * Everything that would keep this Users row alive. The schema aims
- * eleven RESTRICT foreign keys at Users on purpose — an inspection
- * record must never lose its author — so this count is what decides
- * whether an account can be erased outright or has to be anonymised
- * where it stands.
- */
-function accountRecordCounts(int $uid): array {
-    $db = getDB();
-    $q  = function (string $sql, int $binds) use ($db, $uid): int {
-        $st = $db->prepare($sql);
-        $st->execute(array_fill(0, $binds, $uid));
-        return (int)$st->fetchColumn();
-    };
-    return [
-        'reports'     => $q('SELECT COUNT(*) FROM InspectionReports WHERE submitted_by = ?', 1),
-        'tasks'       => $q('SELECT COUNT(*) FROM InspectionTasks WHERE created_by = ? OR assigned_to = ?', 2),
-        'work_orders' => $q('SELECT COUNT(*) FROM WorkOrders WHERE created_by = ? OR assigned_to = ?', 2),
-        'crew'        => $q('SELECT COUNT(*) FROM WorkOrderAssignees WHERE user_id = ?', 1),
-        'updates'     => $q('SELECT COUNT(*) FROM FieldWorkUpdates WHERE updated_by = ?', 1),
-        'generated'   => $q('SELECT COUNT(*) FROM GeneratedReports WHERE generated_by = ?', 1),
-        'owned_teams' => $q('SELECT COUNT(*) FROM Teams WHERE owner_id = ?', 1),
-    ];
-}
+// accountRecordCounts() and eraseAccount() live in config/helpers.php:
+// an administrator erasing a former member uses them too.
 
 // ── GET ?action=account_summary ──────────────────────────────
 // What a deletion would leave behind. The confirmation box quotes
@@ -755,8 +733,7 @@ if ($method === 'POST' && $action === 'delete_account') {
         json_response(false, 'You are still on a team. An administrator has to remove you from it first.', [], 409);
     }
 
-    $db   = getDB();
-    $stmt = $db->prepare('SELECT password_hash, name, email, avatar_path FROM Users WHERE user_id = ?');
+    $stmt = getDB()->prepare('SELECT password_hash FROM Users WHERE user_id = ?');
     $stmt->execute([$uid]);
     $row = $stmt->fetch();
 
@@ -764,96 +741,13 @@ if ($method === 'POST' && $action === 'delete_account') {
         json_response(false, 'That password is incorrect.', [], 401);
     }
 
-    $counts = accountRecordCounts($uid);
-    $kept   = array_sum($counts);
-    $name   = (string)$row['name'];
-    $email  = (string)$row['email'];
-    $avatar = $row['avatar_path'];
-
-    $db->beginTransaction();
     try {
-        // Inside the transaction, so a rollback cannot leave behind a
-        // line claiming a deletion that never happened. Deliberately
-        // without the name: an erasure that writes the name into a
-        // fresh log entry is not an erasure.
-        logActivity(null, 'delete_account', 'user', $uid, $kept === 0
+        eraseAccount($uid, null, 'delete_account', fn(int $kept) => $kept === 0
             ? "Account #$uid was deleted by its owner."
             : "Account #$uid was deleted by its owner; $kept linked record(s) kept under a name marked deleted.");
-
-        // Personal data that lives outside Users, keyed by the address.
-        $db->prepare('DELETE FROM Invitations WHERE email = ?')->execute([$email]);
-        $db->prepare('DELETE FROM PendingRegistrations WHERE email = ?')->execute([$email]);
-        $db->prepare('DELETE FROM PasswordResetCodes WHERE user_id = ?')->execute([$uid]);
-
-        // The address is written into the free text of the activity log
-        // too — "Failed login attempt for: juan@…". It is unique, so
-        // every line carrying it is this person's and can be rewritten
-        // outright. Replaced rather than deleted, so the team's audit
-        // trail keeps its shape.
-        // That rewrites signed entries, so their chains are re-signed from
-        // the first one touched when the request ends (config/logseal.php).
-        $touched = $db->prepare(
-            'SELECT COALESCE(team_id, 0) AS chain_key, MIN(chain_seq) AS from_seq
-               FROM ActivityLogs WHERE description LIKE ? AND chain_seq IS NOT NULL
-              GROUP BY COALESCE(team_id, 0)'
-        );
-        $touched->execute(['%' . $email . '%']);
-        foreach ($touched->fetchAll() as $t) {
-            resealLogFrom((int)$t['chain_key'], (int)$t['from_seq']);
-        }
-        $db->prepare('UPDATE ActivityLogs SET description = REPLACE(description, ?, ?) WHERE description LIKE ?')
-           ->execute([$email, 'a deleted account', '%' . $email . '%']);
-
-        // The name is deliberately left alone here. It is kept on the
-        // account itself (see below), so rewriting it out of the log
-        // would contradict that — and a name is not unique, so a global
-        // rewrite would relabel a namesake's entries as well.
-
-        if ($kept === 0) {
-            $db->prepare('DELETE FROM Users WHERE user_id = ?')->execute([$uid]);
-        } else {
-            // The display name survives, marked. A supervisor looking at
-            // a two-year-old work order still needs to know whose crew
-            // did the job; "Deleted user" erases accountability along
-            // with the person. Marked in the stored value rather than at
-            // render time so every screen, export and email agrees
-            // without eighteen queries having to opt in.
-            //
-            // Trimmed to 90 so the marker fits the varchar(100) column.
-            $marked = mb_substr($name, 0, 90) . ' (deleted)';
-
-            $db->prepare(
-                'UPDATE Users
-                    SET name = ?, email = ?, password_hash = ?,
-                        gender = "prefer_not_to_say", birthdate = NULL, address = NULL, contact_number = NULL,
-                        avatar_path = NULL, is_active = 0,
-                        email_verified_at = NULL, terms_accepted_at = NULL
-                  WHERE user_id = ?'
-            )->execute([
-                $marked,
-                'deleted-' . $uid . '@deleted.invalid',
-                // Not a usable password and not a hash of anything the
-                // person knows: this login can never be used again.
-                password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT),
-                $uid,
-            ]);
-            // The membership rows outlive an anonymised user, so drop
-            // them — no team should be able to list a ghost. Records
-            // keep their author because every listing joins Users, not
-            // TeamMembers.
-            $db->prepare('DELETE FROM TeamMembers WHERE user_id = ?')->execute([$uid]);
-        }
-        $db->commit();
     } catch (Throwable $e) {
-        // commit() can throw too, and rolling back a transaction that is
-        // no longer open throws again, burying the real error.
-        if ($db->inTransaction()) {
-            $db->rollBack();
-        }
         json_response(false, 'The account could not be deleted. Please try again.', [], 500);
     }
-
-    deleteAvatarFile($avatar);
 
     $_SESSION = [];
     session_destroy();

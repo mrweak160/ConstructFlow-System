@@ -1,4 +1,4 @@
-const CACHE = 'constructflow-v133';
+const CACHE = 'constructflow-v162';
 const ASSETS = [
   './',
   './index.html',
@@ -8,9 +8,12 @@ const ASSETS = [
   './supervisor.html',
   './fieldworker.html',
   './admin.html',
+  './guide.html',
+  './guide.js',
   './style.css',
   './style-auth.css',
   './app.js',
+  './charts.js',
   './print.html',
   './print.css',
   './print.js',

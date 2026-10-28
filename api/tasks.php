@@ -26,6 +26,7 @@ if ($method === 'POST' && $action === 'create') {
     $title         = clean($body['title'] ?? '');
     $description   = clean($body['description'] ?? '');
     $location_text = clean($body['location_text'] ?? '');
+    requireMaxLength(['Title' => [$title, 200], 'Location' => [$location_text, 255]]);
     $due_date      = clean($body['due_date'] ?? '');
 
     if (!$assignedTo || !$title || !$location_text) {
@@ -189,7 +190,7 @@ if ($method === 'POST' && $action === 'reassign') {
         json_response(false, 'That person is not an active field inspector in this team.', [], 400);
     }
 
-    $db->prepare('UPDATE InspectionTasks SET assigned_to = ? WHERE task_id = ? AND team_id = ?')
+    $db->prepare('UPDATE InspectionTasks SET assigned_to = ?, due_reminder_sent_at = NULL WHERE task_id = ? AND team_id = ?')
        ->execute([$newId, $taskId, $teamId]);
 
     $rows = [
@@ -224,6 +225,7 @@ if ($method === 'POST' && $action === 'update') {
     $title         = clean($body['title'] ?? '');
     $description   = clean($body['description'] ?? '');
     $location_text = clean($body['location_text'] ?? '');
+    requireMaxLength(['Title' => [$title, 200], 'Location' => [$location_text, 255]]);
     $due_date      = clean($body['due_date'] ?? '');
 
     if (!$taskId || !$title || !$location_text) {
@@ -253,9 +255,11 @@ if ($method === 'POST' && $action === 'update') {
     }
 
     $db->prepare(
-        'UPDATE InspectionTasks SET title = ?, description = ?, location_text = ?, due_date = ?
+        'UPDATE InspectionTasks
+            SET due_reminder_sent_at = IF(due_date <=> ?, due_reminder_sent_at, NULL),
+                title = ?, description = ?, location_text = ?, due_date = ?
           WHERE task_id = ? AND team_id = ?'
-    )->execute([$title, $description, $location_text, $due_date ?: null, $taskId, $teamId]);
+    )->execute([$due_date ?: null, $title, $description, $location_text, $due_date ?: null, $taskId, $teamId]);
 
     notifyUsers([(int)$t['assigned_to']], $teamId, "Task updated: {$t['task_code']}",
         "{$actor['name']} changed the details of your inspection task.", [
@@ -342,6 +346,10 @@ if ($method === 'POST' && $action === 'close') {
     }
 
     $db->prepare('UPDATE InspectionTasks SET status = "closed" WHERE task_id = ? AND team_id = ?')
+       ->execute([$taskId, $teamId]);
+    // Closed without a work order means no repair is needed: the report is
+    // closed with it (shown as "Closed") instead of waiting in Pending.
+    $db->prepare('UPDATE InspectionReports SET status = "rejected" WHERE task_id = ? AND team_id = ? AND status = "pending"')
        ->execute([$taskId, $teamId]);
 
     logActivity($actor['user_id'], 'close_task', 'task', $taskId,

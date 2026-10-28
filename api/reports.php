@@ -39,12 +39,17 @@ if ($method === 'POST' && $action === 'submit') {
     $actor  = currentUser();
     $teamId = (int)$m['team_id'];
     $body   = $_POST;   // multipart, for the photo upload
+    // Refused before anything is saved, so the report is never filed short.
+    if (tooManyPhotos('photos')) {
+        json_response(false, 'You can attach up to ' . MAX_PHOTOS_COUNT . ' photos. Remove some and try again.', [], 400);
+    }
 
     $taskId        = (int)($body['task_id'] ?? 0);
     $title         = clean($body['title'] ?? '');
     $description   = clean($body['description'] ?? '');
     $location_text = clean($body['location_text'] ?? '');
     $address_text  = clean($body['address_text'] ?? '');
+    requireMaxLength(['Title' => [$title, 200], 'Location' => [$location_text, 255], 'Address' => [$address_text, 255]]);
     $provinceCode = clean($body['province_code'] ?? '');
     $cityCode     = clean($body['city_code'] ?? '');
     $brgyCode     = clean($body['brgy_code'] ?? '');
@@ -119,7 +124,7 @@ if ($method === 'POST' && $action === 'submit') {
                   location_text, address_text, province_code, city_code, brgy_code,
                   latitude, longitude, severity,
                   phase, defect_type_id, element_type_id, d_level, c_level,
-                  recommended_severity, classification_confidence, matched_terms, classification_notes)
+                  recommended_severity, needs_review, matched_terms, classification_notes)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             )->execute([
                 $teamId, $code, $taskId, $actor['user_id'], $title, $issue_type,
@@ -128,7 +133,7 @@ if ($method === 'POST' && $action === 'submit') {
                 $latitude, $longitude, $severity,
                 $phase, $cls['defect_type_id'], $cls['element_type_id'],
                 $cls['d_level'], $cls['c_level'], $cls['severity'],
-                $cls['confidence'], implode(', ', $cls['matched_terms']),
+                $cls['needs_review'] ? 1 : 0, implode(', ', $cls['matched_terms']),
                 empty($cls['notes']) ? null : implode("\n", $cls['notes']),
             ]);
             break;
@@ -169,7 +174,6 @@ if ($method === 'POST' && $action === 'submit') {
             'issue_type'    => $issue_type,
             'd_level'       => $cls['d_level'],
             'c_level'       => $cls['c_level'],
-            'confidence'    => $cls['confidence'],
             'needs_review'  => $cls['needs_review'],
             'matched_terms' => $cls['matched_terms'],
             'notes'         => $cls['notes'],
@@ -288,6 +292,7 @@ if ($method === 'POST' && $action === 'edit') {
     $description   = clean($body['description'] ?? '');
     $location_text = clean($body['location_text'] ?? '');
     $address_text  = clean($body['address_text'] ?? '');
+    requireMaxLength(['Title' => [$title, 200], 'Location' => [$location_text, 255], 'Address' => [$address_text, 255]]);
     $provinceCode  = clean($body['province_code'] ?? '');
     $cityCode      = clean($body['city_code'] ?? '');
     $brgyCode      = clean($body['brgy_code'] ?? '');
@@ -341,7 +346,7 @@ if ($method === 'POST' && $action === 'edit') {
                 province_code = ?, city_code = ?, brgy_code = ?,
                 phase = ?, severity = ?, defect_type_id = ?, element_type_id = ?,
                 d_level = ?, c_level = ?, recommended_severity = ?,
-                classification_confidence = ?, matched_terms = ?, classification_notes = ?
+                needs_review = ?, matched_terms = ?, classification_notes = ?
           WHERE report_id = ? AND team_id = ?'
     )->execute([
         $title, $issue_type, $description,
@@ -349,7 +354,7 @@ if ($method === 'POST' && $action === 'edit') {
         $provinceCode ?: null, $cityCode ?: null, $brgyCode ?: null,
         $phase, $severity, $cls['defect_type_id'], $cls['element_type_id'],
         $cls['d_level'], $cls['c_level'], $cls['severity'],
-        $cls['confidence'], implode(', ', $cls['matched_terms']),
+        $cls['needs_review'] ? 1 : 0, implode(', ', $cls['matched_terms']),
         empty($cls['notes']) ? null : implode("\n", $cls['notes']),
         $reportId, $teamId,
     ]);
@@ -359,7 +364,7 @@ if ($method === 'POST' && $action === 'edit') {
 
     json_response(true, 'Report updated and re-classified.', [
         'severity'   => $severity,
-        'confidence' => $cls['confidence'],
+        'needs_review' => $cls['needs_review'],
         'issue_type' => $issue_type,
     ]);
 }

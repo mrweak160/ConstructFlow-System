@@ -154,6 +154,14 @@ final class KnowledgeBase
 {
     public const SEVERITY_RANK = ['low' => 1, 'moderate' => 2, 'high' => 3, 'critical' => 4];
 
+    /**
+     * A defect that names its own building part. Settlement is the ground
+     * and the footing on it giving way, so a settlement report that names
+     * no part is read as the footing, not as the general default (which
+     * never assumes a load-bearing part). A part that is named still wins.
+     */
+    public const IMPLIED_ELEMENT = ['settlement_movement' => 'footing'];
+
     public array $terms          = [];   // normalised phrase => list of entries
     public int   $maxWords       = 1;
     public array $matrix         = [];   // [d][c] => severity
@@ -163,6 +171,8 @@ final class KnowledgeBase
     public array $defectNames    = [];   // defect_type_id => name
     public array $elementC       = [];   // element_type_id => c_level
     public ?int  $defaultElement = null;
+    public array $defectCodes    = [];   // defect_type_id => code
+    public array $elementByCode  = [];   // code => element_type_id
     public ?int  $generalDefectType = null;
 
     /**
@@ -185,13 +195,14 @@ final class KnowledgeBase
         // --- defect types active for this phase ---
         $activeTypes = [];
         foreach ($pdo->query(
-            "SELECT defect_type_id, name, is_general
+            "SELECT defect_type_id, code, name, is_general
                FROM DefectTypes
               WHERE is_active = 1 AND {$phaseCol} = 1"
         )->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $id = (int)$r['defect_type_id'];
             $activeTypes[$id]     = true;
             $kb->defectNames[$id] = $r['name'];
+            $kb->defectCodes[$id] = $r['code'];
             if ((int)$r['is_general'] === 1) {
                 $kb->generalDefectType = $id;
             }
@@ -216,10 +227,11 @@ final class KnowledgeBase
 
         // --- elements ---
         foreach ($pdo->query(
-            'SELECT element_type_id, c_level, is_default FROM ElementTypes WHERE is_active = 1'
+            'SELECT element_type_id, code, c_level, is_default FROM ElementTypes WHERE is_active = 1'
         )->fetchAll(PDO::FETCH_ASSOC) as $r) {
             $eid = (int)$r['element_type_id'];
             $kb->elementC[$eid] = (int)$r['c_level'];
+            $kb->elementByCode[$r['code']] = $eid;
             if ((int)$r['is_default'] === 1) {
                 $kb->defaultElement = $eid;
             }
@@ -289,7 +301,6 @@ final class KnowledgeBase
 // ============================================================
 final class SeverityClassifier
 {
-    private const NEGATION_WINDOW = 3;
     /** A negation stops at these words (already stemmed). */
     private const NEGATION_STOPS  = ['but', 'however', 'although', 'though', 'except',
                                      'and', 'pero', 'ngunit', 'subalit'];
@@ -320,7 +331,6 @@ final class SeverityClassifier
 
         [$matches, $negated] = $this->applyNegation($matches, $tokens);
 
-        $confidence  = 100;
         $notes       = [];
         $forceReview = false;
 
@@ -361,13 +371,13 @@ final class SeverityClassifier
             $defectPos    = $best['pos'];
 
             if ($best['fuzzy']) {
-                $confidence -= 15;
+                $forceReview = true;
                 $notes[] = "defect word matched approximately (\"{$best['display']}\")";
             }
             if (count($byType) > 1) {
-                $confidence -= 15;
                 $others = array_map(fn($t) => $this->kb->defectNames[$t] ?? '?',
                                     array_diff(array_keys($byType), [$defectTypeId]));
+                $forceReview = true;
                 $notes[] = 'also mentions ' . implode(', ', $others) . '; classified as '
                          . ($this->kb->defectNames[$defectTypeId] ?? '?')
                          . ' (the higher level, or the more specific phrase on a tie);'
@@ -379,14 +389,12 @@ final class SeverityClassifier
             $byType = $this->groupByType($conditions, true);
             $defectTypeId = $this->pickType($byType, $conditions);
             $defectPos    = $byType[$defectTypeId][0]['pos'];
-            $confidence  -= 15;
             $notes[] = 'defect type inferred from a condition word ("'
                      . $byType[$defectTypeId][0]['display'] . '")';
         }
 
         if ($defectTypeId === null || $defectTypeId === $this->kb->generalDefectType) {
             $defectTypeId = $this->kb->generalDefectType;
-            $confidence  -= 50;
             $notes[]      = 'no listed defect type recognised; general classification used';
         }
 
@@ -395,7 +403,6 @@ final class SeverityClassifier
         $conditionMatched = $dLevel !== null;
         if ($dLevel === null) {
             $dLevel = $this->kb->defaultD[$defectTypeId] ?? 2;
-            $confidence -= 20;
             $notes[] = 'no condition described; default defect level used';
         }
 
@@ -435,16 +442,25 @@ final class SeverityClassifier
             // Do not silently take it; do not silently ignore it.
             foreach ($elementMatches as $m) {
                 if ($this->kb->elementC[$m['element']] > $cLevel) {
-                    $confidence -= 20;
+                    $forceReview = true;
                     $notes[] = 'more than one element mentioned; confirm which is affected';
                     break;
                 }
             }
         } else {
-            $elementId = $this->kb->defaultElement;
-            $cLevel    = $this->kb->elementC[$elementId] ?? 2;
-            $confidence -= 25;
-            $notes[] = 'no element identified; default consequence used';
+            // Settlement names its own part: the foundation (IMPLIED_ELEMENT).
+            // Still flagged for review below, since no part was named.
+            $implied   = KnowledgeBase::IMPLIED_ELEMENT[$this->kb->defectCodes[$defectTypeId] ?? ''] ?? null;
+            $impliedId = $implied !== null ? ($this->kb->elementByCode[$implied] ?? null) : null;
+            if ($impliedId !== null) {
+                $elementId = $impliedId;
+                $cLevel    = $this->kb->elementC[$elementId];
+                $notes[] = 'no element named; settlement is read as the foundation (footing)';
+            } else {
+                $elementId = $this->kb->defaultElement;
+                $cLevel    = $this->kb->elementC[$elementId] ?? 2;
+                $notes[] = 'no element identified; default consequence used';
+            }
         }
 
         // ---------- exposure raises C, never D ----------
@@ -480,17 +496,19 @@ final class SeverityClassifier
             }
         }
 
-        $confidence = max(0, min(100, $confidence));
-
         return [
             'defect_type_id'   => $defectTypeId,
             'element_type_id'  => $elementId,
             'd_level'          => $dLevel,
             'c_level'          => $cLevel,
             'severity'         => $severity,
-            'confidence'       => $confidence,
-            'needs_review'     => $confidence < 80 || $verdictConflict || $forceReview,
-            'prefill'          => $confidence >= 50,
+            // Flagged when the engine fell back on a default it cannot vouch
+            // for (no listed defect, no element), or found something a person
+            // must check: a misspelled defect word, a second defect type or a
+            // more serious element also named, a measurement, or an
+            // inspector's verdict two or more levels away.
+            'needs_review'     => $defectTypeId === $this->kb->generalDefectType
+                                  || !$elementMatches || $verdictConflict || $forceReview,
             'exposure'         => $exposure,
             'verdict_severity' => $verdictSeverity,
             'verdict_conflict' => $verdictConflict,
@@ -577,8 +595,10 @@ final class SeverityClassifier
     }
 
     /**
-     * A negation cancels any term starting in the next few words,
-     * stopping early at a clause break or a conjunction.
+     * A negation cancels the terms after it in the same clause, up to a
+     * clause break or a conjunction (the scope rule of NegEx), with no
+     * fixed word count.
+     *   "no visible signs of any cracking on the beam" -> crack and beam cancelled
      *   "no cracks but spalling on the beam" -> crack cancelled
      *   "no leak. wide crack on the beam"    -> crack survives
      *   "no workers below"                   -> exposure cancelled
@@ -590,7 +610,7 @@ final class SeverityClassifier
         $suppressed = [];
         foreach ($matches as $m) {
             if ($m['kind'] !== 'negation') { continue; }
-            for ($k = $m['pos'] + 1; $k <= $m['pos'] + self::NEGATION_WINDOW; $k++) {
+            for ($k = $m['pos'] + $m['words']; isset($tokens[$k]); $k++) {
                 if (!isset($tokens[$k]) || $tokens[$k] === TextNormalizer::BOUNDARY
                     || in_array($tokens[$k], self::NEGATION_STOPS, true)) {
                     break;

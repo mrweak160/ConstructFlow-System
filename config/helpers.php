@@ -4,6 +4,25 @@ require_once __DIR__ . '/mailer.php';
 require_once __DIR__ . '/notify.php';
 require_once __DIR__ . '/logseal.php';
 
+// ── UNEXPECTED ERRORS ────────────────────────────────────────
+// Anything uncaught (a database error, a bug) still answers in JSON, so the
+// page shows a message instead of doing nothing. The detail goes to the
+// server's error log, never to the browser.
+set_exception_handler(function (Throwable $e): void {
+    error_log('ConstructFlow: ' . get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    if (PHP_SAPI === 'cli') {
+        fwrite(STDERR, $e->getMessage() . "\n");
+        exit(1);
+    }
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json');
+        header('Cache-Control: no-store');
+    }
+    echo json_encode(['success' => false, 'data' => [],
+        'message' => 'Something went wrong on the server. Please try again; if it keeps happening, tell your administrator.']);
+});
+
 // ── TIME ZONE ────────────────────────────────────────────────
 // Every time the system records or compares is Philippine time, whatever
 // the host's own clocks are set to: the live database's server zone, and
@@ -132,7 +151,10 @@ function markFormerMembers(array $rows, int $teamId, array $pairs): array {
             $ids   = explode(',', (string)$row[$idCol]);
             $names = explode(NAME_GLUE, (string)$row[$nameCol]);
             foreach ($ids as $i => $id) {
-                if (isset($names[$i]) && isset($gone[(int)$id])) {
+                // An erased account already reads "(deleted)"; "(removed)"
+                // on top of it would say the same thing twice.
+                if (isset($names[$i]) && isset($gone[(int)$id])
+                    && !str_ends_with($names[$i], '(deleted)')) {
                     $names[$i] .= ' (removed)';
                 }
             }
@@ -253,6 +275,19 @@ function assertNotLastAdmin(int $teamId, int $userId): void {
     }
 }
 
+/** Reports, reviews and closures wait for a supervisor, so a team keeps one. */
+function assertNotLastSupervisor(int $teamId, string $name): void {
+    $stmt = getDB()->prepare(
+        'SELECT COUNT(*) FROM TeamMembers WHERE team_id = ? AND role = "supervisor" AND status = "active"'
+    );
+    $stmt->execute([$teamId]);
+    if ((int)$stmt->fetchColumn() <= 1) {
+        json_response(false,
+            "$name is the team's only supervisor. Make someone else a supervisor first, so reports and reviews are not left waiting.",
+            ['needs_successor' => true], 409);
+    }
+}
+
 // ── INVITATIONS ──────────────────────────────────────────────
 const INVITE_TTL_HOURS      = 72;
 const INVITE_MAX_RESENDS    = 5;
@@ -311,10 +346,29 @@ function issueCsrfToken(): string {
     return $_SESSION['csrf_token'];
 }
 
+/** post_max_size and friends as bytes ("12M" -> 12582912). */
+function iniBytes(string $key): int {
+    $v = trim((string)ini_get($key));
+    $n = (int)$v;
+    return match (strtolower(substr($v, -1))) { 'g' => $n << 30, 'm' => $n << 20, 'k' => $n << 10, default => $n };
+}
+
+/** True when PHP discarded the request body because it was over post_max_size. */
+function requestTooLarge(): bool {
+    return ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && !$_POST && !$_FILES
+        && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > iniBytes('post_max_size');
+}
+
 function verifyCsrf(): void {
+    if (requestTooLarge()) {
+        json_response(false, 'The photos are too large to send together. Remove some photos and try again.', [], 413);
+    }
     startSecureSession();
     $sent = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($_POST['csrf_token'] ?? '');
-    if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], (string)$sent)) {
+    if (empty($_SESSION['csrf_token'])) {
+        json_response(false, 'Your sign-in has expired. Please sign in again.', [], 401);
+    }
+    if (!hash_equals($_SESSION['csrf_token'], (string)$sent)) {
         json_response(false, 'Invalid or missing security token. Please refresh and try again.', [], 403);
     }
 }
@@ -516,6 +570,15 @@ function clean(mixed $val): string {
     return trim(preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', (string)$val));
 }
 
+/** Refuses text longer than its column, instead of the database cutting it short. */
+function requireMaxLength(array $fields): void {
+    foreach ($fields as $label => [$value, $max]) {
+        if (mb_strlen((string)$value) > $max) {
+            json_response(false, "$label can be at most $max characters.", [], 400);
+        }
+    }
+}
+
 function getBody(): array {
     $raw = file_get_contents('php://input');
     return json_decode($raw, true) ?? $_POST;
@@ -530,6 +593,12 @@ const ALLOWED_IMAGE_TYPES = [
 
 const MAX_PHOTO_BYTES  = 10 * 1024 * 1024;
 const MAX_PHOTOS_COUNT = 10;
+
+/** True when a request carries more photos than one submission may. */
+function tooManyPhotos(string $fieldName): bool {
+    $names = $_FILES[$fieldName]['name'] ?? null;
+    return is_array($names) && count(array_filter($names, 'strlen')) > MAX_PHOTOS_COUNT;
+}
 
 function handleMultiplePhotoUploads(string $fieldName, string $prefix, int $ownerId): array {
     $result = ['saved' => [], 'errors' => []];
@@ -661,4 +730,154 @@ function deleteAvatarFile(?string $path): void {
     }
     $full = __DIR__ . '/../' . $path;
     if (is_file($full)) @unlink($full);
+}
+
+// ── ACCOUNT ERASURE ──────────────────────────────────────────
+
+/**
+ * Everything that would keep this Users row alive. The schema aims
+ * eleven RESTRICT foreign keys at Users on purpose — an inspection
+ * record must never lose its author — so this count is what decides
+ * whether an account can be erased outright or has to be anonymised
+ * where it stands.
+ */
+function accountRecordCounts(int $uid): array {
+    $db = getDB();
+    $q  = function (string $sql, int $binds) use ($db, $uid): int {
+        $st = $db->prepare($sql);
+        $st->execute(array_fill(0, $binds, $uid));
+        return (int)$st->fetchColumn();
+    };
+    return [
+        'reports'     => $q('SELECT COUNT(*) FROM InspectionReports WHERE submitted_by = ?', 1),
+        'tasks'       => $q('SELECT COUNT(*) FROM InspectionTasks WHERE created_by = ? OR assigned_to = ?', 2),
+        'work_orders' => $q('SELECT COUNT(*) FROM WorkOrders WHERE created_by = ? OR assigned_to = ?', 2),
+        'crew'        => $q('SELECT COUNT(*) FROM WorkOrderAssignees WHERE user_id = ?', 1),
+        'updates'     => $q('SELECT COUNT(*) FROM FieldWorkUpdates WHERE updated_by = ?', 1),
+        'generated'   => $q('SELECT COUNT(*) FROM GeneratedReports WHERE generated_by = ?', 1),
+        'owned_teams' => $q('SELECT COUNT(*) FROM Teams WHERE owner_id = ?', 1),
+    ];
+}
+
+/**
+ * Erases an account. The owner deleting their own (api/auth.php) and an
+ * administrator erasing a former member (api/teams.php) both come here.
+ *   no linked records → the Users row goes, and CASCADE takes the
+ *                       memberships, invitations and reset codes.
+ *   any linked record → the row stays and keeps its display name,
+ *                       marked "(deleted)", because in a safety record
+ *                       the author is part of the record. Every other
+ *                       personal field is overwritten and the login is
+ *                       closed for good.
+ * Either way the email address is released, so the person can sign up
+ * again later with the same one.
+ *
+ * $describe(kept) writes the log line. $keepRemoved keeps the "removed"
+ * memberships, so a team that erased the person still lists them as
+ * erased. Returns the number of linked records kept; throws, rolled back,
+ * if anything fails.
+ */
+function eraseAccount(int $uid, ?int $actorId, string $logAction, callable $describe, bool $keepRemoved = false): int {
+    $db   = getDB();
+    $stmt = $db->prepare('SELECT name, email, avatar_path FROM Users WHERE user_id = ?');
+    $stmt->execute([$uid]);
+    $row  = $stmt->fetch();
+    if (!$row) {
+        throw new RuntimeException("No account #$uid.");
+    }
+    $kept  = array_sum(accountRecordCounts($uid));
+    $name  = (string)$row['name'];
+    $email = (string)$row['email'];
+
+    $db->beginTransaction();
+    try {
+        // Inside the transaction, so a rollback cannot leave behind a
+        // line claiming a deletion that never happened. Deliberately
+        // without the name: an erasure that writes the name into a
+        // fresh log entry is not an erasure.
+        logActivity($actorId, $logAction, 'user', $uid, $describe($kept));
+
+        // Personal data that lives outside Users, keyed by the address.
+        $db->prepare('DELETE FROM Invitations WHERE email = ?')->execute([$email]);
+        $db->prepare('DELETE FROM PendingRegistrations WHERE email = ?')->execute([$email]);
+        $db->prepare('DELETE FROM PasswordResetCodes WHERE user_id = ?')->execute([$uid]);
+
+        // The address is written into the free text of the activity log
+        // too — "Failed login attempt for: juan@…". It is unique, so
+        // every line carrying it is this person's and can be rewritten
+        // outright. Replaced rather than deleted, so the team's audit
+        // trail keeps its shape.
+        // That rewrites signed entries, so their chains are re-signed from
+        // the first one touched when the request ends (config/logseal.php).
+        $touched = $db->prepare(
+            'SELECT COALESCE(team_id, 0) AS chain_key, MIN(chain_seq) AS from_seq
+               FROM ActivityLogs WHERE description LIKE ? AND chain_seq IS NOT NULL
+              GROUP BY COALESCE(team_id, 0)'
+        );
+        $touched->execute(['%' . $email . '%']);
+        foreach ($touched->fetchAll() as $t) {
+            resealLogFrom((int)$t['chain_key'], (int)$t['from_seq']);
+        }
+        $db->prepare('UPDATE ActivityLogs SET description = REPLACE(description, ?, ?) WHERE description LIKE ?')
+           ->execute([$email, 'a deleted account', '%' . $email . '%']);
+
+        // The name is deliberately left alone here. It is kept on the
+        // account itself (see below), so rewriting it out of the log
+        // would contradict that — and a name is not unique, so a global
+        // rewrite would relabel a namesake's entries as well.
+
+        if ($kept === 0) {
+            $db->prepare('DELETE FROM Users WHERE user_id = ?')->execute([$uid]);
+        } else {
+            // The display name survives, marked. A supervisor looking at
+            // a two-year-old work order still needs to know whose crew
+            // did the job; "Deleted user" erases accountability along
+            // with the person. Marked in the stored value rather than at
+            // render time so every screen, export and email agrees
+            // without eighteen queries having to opt in.
+            //
+            // Trimmed to 90 so the marker fits the varchar(100) column.
+            $marked = mb_substr($name, 0, 90) . ' (deleted)';
+
+            $db->prepare(
+                'UPDATE Users
+                    SET name = ?, email = ?, password_hash = ?,
+                        gender = "prefer_not_to_say", birthdate = NULL, address = NULL, contact_number = NULL,
+                        avatar_path = NULL, is_active = 0,
+                        email_verified_at = NULL, terms_accepted_at = NULL
+                  WHERE user_id = ?'
+            )->execute([
+                $marked,
+                'deleted-' . $uid . '@deleted.invalid',
+                // Not a usable password and not a hash of anything the
+                // person knows: this login can never be used again.
+                password_hash(bin2hex(random_bytes(32)), PASSWORD_BCRYPT),
+                $uid,
+            ]);
+            // The membership rows outlive an anonymised user, so drop
+            // them — no team should be able to list a ghost. Records
+            // keep their author because every listing joins Users, not
+            // TeamMembers. An administrator's erase keeps the "removed"
+            // rows: those teams list the person as a former member, erased.
+            $db->prepare($keepRemoved
+                ? 'DELETE FROM TeamMembers WHERE user_id = ? AND status <> "removed"'
+                : 'DELETE FROM TeamMembers WHERE user_id = ?')->execute([$uid]);
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        // commit() can throw too, and rolling back a transaction that is
+        // no longer open throws again, burying the real error.
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        throw $e;
+    }
+
+    deleteAvatarFile($row['avatar_path']);
+    return $kept;
+}
+
+/** True once eraseAccount() has anonymised the row. */
+function isErasedAccount(array $user): bool {
+    return !(int)$user['is_active'] && str_ends_with((string)$user['email'], '@deleted.invalid');
 }

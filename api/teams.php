@@ -12,6 +12,13 @@ if ($method === 'POST') {
     verifyCsrf();
 }
 
+/** Who created the team. Their role is fixed and they cannot be removed. */
+function teamOwnerId(int $teamId): int {
+    $st = getDB()->prepare('SELECT owner_id FROM Teams WHERE team_id = ?');
+    $st->execute([$teamId]);
+    return (int)$st->fetchColumn();
+}
+
 function assignableBy(string $actorRole): array {
     return match ($actorRole) {
         'administrator' => ['administrator', 'supervisor', 'field_inspector', 'field_worker', 'member'],
@@ -342,9 +349,10 @@ if ($method === 'GET' && $action === 'members') {
 
     $stmt = $db->prepare(
         'SELECT tm.membership_id, tm.user_id, tm.role, tm.status, tm.joined_at,
-                u.name, u.email, u.avatar_path
+                u.name, u.email, u.avatar_path, (tm.user_id = t.owner_id) AS is_owner
          FROM TeamMembers tm
          JOIN Users u ON tm.user_id = u.user_id
+         JOIN Teams t ON t.team_id = tm.team_id
          WHERE tm.team_id = ? AND tm.status = "active"
          ORDER BY FIELD(tm.role,"administrator","supervisor","field_inspector","field_worker","member"), u.name'
     );
@@ -415,14 +423,17 @@ if ($method === 'POST' && $action === 'assign_role') {
         json_response(false, "{$target['name']} already has that role.", [], 400);
     }
 
-    if ($target['member_role'] === 'administrator') {
-        json_response(false,
-            $userId === $actor['user_id']
-                ? 'You cannot change your own role. Another administrator has to remove you from the team.'
-                : "Another administrator's role cannot be changed. They have to be removed by an administrator instead.",
-            [], 403);
+    if ($userId === (int)$actor['user_id']) {
+        json_response(false, 'You cannot change your own role. Ask another administrator to do it.', [], 403);
+    }
+    // Another administrator's role can be changed; the owner's never.
+    if ($userId === teamOwnerId((int)$m['team_id'])) {
+        json_response(false, "{$target['name']} owns this team, so their role cannot be changed.", [], 403);
     }
     assertNotLastAdmin((int)$m['team_id'], $userId);
+    if ($target['member_role'] === 'supervisor') {
+        assertNotLastSupervisor((int)$m['team_id'], $target['name']);
+    }
 
 
     // This team's work only: someone on two teams is not held back here by
@@ -449,7 +460,8 @@ if ($method === 'POST' && $action === 'assign_role') {
     logActivity($actor['user_id'], 'assign_role', 'team', (int)$m['team_id'],
         "{$actor['name']} set {$target['name']} as $newRole.");
 
-    json_response(true, "{$target['name']} is now a " . str_replace('_', ' ', $newRole) . '.', [
+    $label = str_replace('_', ' ', $newRole);
+    json_response(true, "{$target['name']} is now " . ($newRole === 'administrator' ? 'an ' : 'a ') . $label . '.', [
         'admin_count' => countAdmins((int)$m['team_id']),
     ]);
 }
@@ -481,7 +493,13 @@ if ($method === 'POST' && $action === 'remove_member') {
         json_response(false, 'That person is not an active member of this team.', [], 404);
     }
 
+    if ($userId === teamOwnerId((int)$m['team_id'])) {
+        json_response(false, "{$target['name']} owns this team and cannot be removed. The team ends only when it is deleted.", [], 403);
+    }
     assertNotLastAdmin((int)$m['team_id'], $userId);
+    if ($target['role'] === 'supervisor') {
+        assertNotLastSupervisor((int)$m['team_id'], $target['name']);
+    }
 
     $open = $db->prepare(
         "SELECT COUNT(*) FROM WorkOrders w
@@ -505,6 +523,142 @@ if ($method === 'POST' && $action === 'remove_member') {
         "{$actor['name']} removed {$target['name']} from the team.");
 
     json_response(true, "{$target['name']} has been removed from the team.");
+}
+
+// ── GET ?action=former_members ───────────────────────────────
+// Everyone removed from this team, newest first. Their names stay on the
+// records they made; the administrator can erase the rest of their
+// personal details. Nothing else about them is sent.
+if ($method === 'GET' && $action === 'former_members') {
+    $m    = requireTeamRole('administrator');
+    $stmt = getDB()->prepare(
+        'SELECT tm.user_id, tm.role, tm.updated_at AS removed_at, u.name, u.avatar_path,
+                (u.is_active = 0 AND u.email LIKE "%@deleted.invalid") AS erased,
+                EXISTS (SELECT 1 FROM TeamMembers o JOIN Teams t ON t.team_id = o.team_id
+                         WHERE o.user_id = tm.user_id AND o.status IN ("pending","active")
+                           AND t.is_active = 1) AS elsewhere
+           FROM TeamMembers tm
+           JOIN Users u ON u.user_id = tm.user_id
+          WHERE tm.team_id = ? AND tm.status = "removed"
+          ORDER BY tm.updated_at DESC'
+    );
+    $stmt->execute([$m['team_id']]);
+    json_response(true, 'Former members retrieved.', ['former_members' => $stmt->fetchAll()]);
+}
+
+// ── POST ?action=erase_member ────────────────────────────────
+// Body: { user_id, password }. Erases a former member's personal details;
+// the name stays on their records, marked "(deleted)". It cannot be
+// undone, so the administrator confirms with their own password. Someone
+// still on another team is refused: the account is theirs as well.
+if ($method === 'POST' && $action === 'erase_member') {
+    $m      = requireTeamRole('administrator');
+    $actor  = currentUser();
+    $body   = getBody();
+    $userId = (int)($body['user_id'] ?? 0);
+    // Checked rather than cast: an array here would print a warning
+    // ahead of the JSON body.
+    $pass   = is_string($body['password'] ?? null) ? $body['password'] : '';
+
+    if (!$userId) {
+        json_response(false, 'User is required.', [], 400);
+    }
+    if ($pass === '') {
+        json_response(false, 'Enter your password to confirm.', [], 400);
+    }
+
+    $db = getDB();
+    $st = $db->prepare('SELECT password_hash FROM Users WHERE user_id = ?');
+    $st->execute([$actor['user_id']]);
+    // 403, not 401: the app reads a 401 as a sign-in that has expired.
+    if (!password_verify($pass, (string)$st->fetchColumn())) {
+        json_response(false, 'That password is incorrect.', [], 403);
+    }
+
+    $st = $db->prepare(
+        'SELECT u.name, u.email, u.is_active FROM TeamMembers tm
+           JOIN Users u ON u.user_id = tm.user_id
+          WHERE tm.team_id = ? AND tm.user_id = ? AND tm.status = "removed" LIMIT 1'
+    );
+    $st->execute([$m['team_id'], $userId]);
+    $target = $st->fetch();
+
+    if (!$target) {
+        json_response(false, 'Only someone already removed from this team can be erased.', [], 404);
+    }
+    if (isErasedAccount($target)) {
+        json_response(false, 'Their personal details have already been erased.', [], 409);
+    }
+    if (userMemberships($userId)) {
+        json_response(false, "{$target['name']} is still on another team, so their account can't be erased from here.", [], 409);
+    }
+
+    try {
+        eraseAccount($userId, (int)$actor['user_id'], 'erase_member', fn(int $kept) =>
+            "{$actor['name']} erased the personal details of a former member (account #$userId)"
+            . ($kept === 0 ? '; the account had no records and was removed.'
+                           : "; $kept linked record(s) kept under a name marked deleted."), true);
+    } catch (Throwable $e) {
+        json_response(false, 'The details could not be erased. Please try again.', [], 500);
+    }
+
+    json_response(true, "{$target['name']}'s personal details have been erased.");
+}
+
+// ── POST ?action=delete_team ─────────────────────────────────
+// Body: { password }. Allowed once the administrator is the last active
+// member. The team is hidden for good, not erased: its reports, work
+// orders and sealed activity log are safety records, so the database
+// keeps them. Pending invitations are revoked so no old link reopens it.
+if ($method === 'POST' && $action === 'delete_team') {
+    $m      = requireTeamRole('administrator');
+    $actor  = currentUser();
+    $teamId = (int)$m['team_id'];
+    $sent   = getBody()['password'] ?? '';
+    $pass   = is_string($sent) ? $sent : '';
+
+    if ($pass === '') {
+        json_response(false, 'Enter your password to confirm.', [], 400);
+    }
+    $db = getDB();
+    $st = $db->prepare('SELECT password_hash FROM Users WHERE user_id = ?');
+    $st->execute([$actor['user_id']]);
+    // 403, not 401: the app reads a 401 as a sign-in that has expired.
+    if (!password_verify($pass, (string)$st->fetchColumn())) {
+        json_response(false, 'That password is incorrect.', [], 403);
+    }
+
+    $st = $db->prepare('SELECT COUNT(*) FROM TeamMembers WHERE team_id = ? AND status = "active" AND user_id <> ?');
+    $st->execute([$teamId, $actor['user_id']]);
+    $others = (int)$st->fetchColumn();
+    if ($others > 0) {
+        json_response(false, "Remove the other $others member" . ($others === 1 ? '' : 's')
+            . ' first. A team can be deleted only when you are its last member.', ['other_members' => $others], 409);
+    }
+
+    $st = $db->prepare('SELECT name FROM Teams WHERE team_id = ?');
+    $st->execute([$teamId]);
+    $name = (string)$st->fetchColumn();
+
+    $db->beginTransaction();
+    try {
+        logActivity($actor['user_id'], 'delete_team', 'team', $teamId,
+            "{$actor['name']} deleted the team \"$name\". Its records are kept.");
+        $db->prepare('UPDATE Invitations SET revoked_at = NOW()
+                       WHERE team_id = ? AND accepted_at IS NULL AND revoked_at IS NULL')->execute([$teamId]);
+        $db->prepare('UPDATE TeamMembers SET status = "removed" WHERE team_id = ? AND status = "pending"')->execute([$teamId]);
+        $db->prepare('UPDATE Teams SET is_active = 0 WHERE team_id = ?')->execute([$teamId]);
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        json_response(false, 'The team could not be deleted. Please try again.', [], 500);
+    }
+
+    // No team now: the gate offers to create or join another.
+    unset($_SESSION['active_team_id']);
+    json_response(true, "\"$name\" has been deleted.", ['redirect' => 'team.html']);
 }
 
 // ── POST ?action=update_team ─────────────────────────────────

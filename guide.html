@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="theme-color" content="#f59e0b"/>
+<link rel="manifest" href="manifest.json"/>
+<title>How Severity Works — ConstructFlow</title>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('cf_theme')==='dark'?'dark':'light'}catch(e){}</script>
+<link rel="stylesheet" href="style.css"/>
+<link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
+<style>
+body{background:var(--bg);margin:0}
+.gd{max-width:960px;margin:0 auto;padding:20px 16px 48px}
+.gd-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.gd-brand{display:flex;align-items:center;gap:10px;font-weight:800;color:var(--text);text-decoration:none}
+.gd-brand img{width:30px;height:30px}
+.gd-back{font-size:13px;color:var(--muted);text-decoration:none;white-space:nowrap}
+.gd-back:hover{color:var(--text)}
+.gd h1{font-size:24px;margin:0 0 6px;color:var(--text)}
+.gd-lead{color:var(--label);font-size:14px;line-height:1.65;margin:0 0 6px}
+.gd-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-top:16px}
+.gd-card h2{font-size:16px;margin:0 0 4px;color:var(--text)}
+.gd-sub{font-size:12.5px;color:var(--muted);margin:0 0 14px;line-height:1.55}
+.gd-steps{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.gd-steps li{display:grid;grid-template-columns:30px 1fr;gap:12px;font-size:13.5px;line-height:1.6;color:var(--label)}
+.gd-steps b{color:var(--text)}
+.gd-num{width:28px;height:28px;border-radius:50%;background:var(--amber);color:#1a1a2e;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:13px}
+.gd-flags{margin:10px 0 0 18px;padding:0;font-size:13px;line-height:1.7;color:var(--label)}
+.gd-note{border-left:3px solid var(--amber);padding:8px 12px;font-size:13px;color:var(--label);background:rgba(245,158,11,.08);border-radius:0 8px 8px 0;margin-top:14px}
+.gd .table-wrap table{min-width:0}
+.gd table td,.gd table th{font-size:12.5px}
+.gd-grid td,.gd-grid th{text-align:center}
+.gd-grid th:first-child,.gd-grid td:first-child{text-align:left;white-space:nowrap}
+.gd-defect{margin-top:14px}
+.gd-defect h3{font-size:13.5px;margin:0 0 6px;color:var(--text)}
+.gd-defect h3 span{font-weight:500;color:var(--muted);font-size:12px}
+.gd-lvl{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.gd-lvl div{border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:12.5px;color:var(--label);line-height:1.45}
+.gd-lvl div b{display:block;font-size:11px;color:var(--muted);margin-bottom:2px}
+.gd-lvl div.def{border-color:var(--amber)}
+.gd-lvl div.none{opacity:.5}
+.gd-try textarea{min-height:76px;resize:vertical}
+.gd-try-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.gd-try-row select{max-width:220px}
+.gd-result{margin-top:14px;display:none}
+.gd-result.show{display:block}
+.gd-res-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13.5px;color:var(--label)}
+.gd-res-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+.gd-res-grid div{border:1px solid var(--border);border-radius:10px;padding:10px;font-size:13px;color:var(--label)}
+.gd-res-grid div b{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px}
+.gd-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.gd-chip{font-size:12px;padding:3px 9px;border-radius:999px;background:rgba(245,158,11,.14);color:var(--text)}
+.gd-chip.off{background:transparent;border:1px dashed var(--border);color:var(--muted);text-decoration:line-through}
+.gd-voc-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.gd-voc-tools input{flex:1 1 220px}
+.gd-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.gd-count{font-size:12px;color:var(--muted)}
+.gd-voc td:first-child{font-weight:600;color:var(--text)}
+.gd-src{font-size:11.5px;color:var(--muted)}
+.gd-tips{margin:0;padding-left:18px;font-size:13.5px;line-height:1.75;color:var(--label)}
+.gd-tips b{color:var(--text)}
+.gd-loading{font-size:13px;color:var(--muted);padding:8px 0}
+@media (max-width:640px){
+  .gd-lvl{grid-template-columns:1fr 1fr}
+  .gd-res-grid{grid-template-columns:1fr}
+  .gd h1{font-size:20px}
+}
+</style>
+</head>
+<body>
+<main class="gd">
+  <div class="gd-top">
+    <a class="gd-brand" id="gd-home" href="login.html"><img src="logo/logo-mark.png" alt=""/>ConstructFlow</a>
+    <a class="gd-back" id="gd-back" href="login.html">&larr; Back to dashboard</a>
+  </div>
+
+  <h1>How the severity engine works</h1>
+  <p class="gd-lead">When an inspector submits a finding, ConstructFlow reads the description and <b>recommends</b> a severity: Low, Moderate, High, or Critical. It is a rule-based expert system: every result comes from a word in its vocabulary and one cell of the severity grid below, so it can always be explained. <b>The supervisor makes the final decision</b> and can keep or change the recommendation.</p>
+
+  <section class="gd-card">
+    <h2>How it decides</h2>
+    <p class="gd-sub">The same five steps run for every report, in English, Tagalog, or Taglish.</p>
+    <ol class="gd-steps">
+      <li><span class="gd-num">1</span><span><b>Reads the words.</b> Capital letters and filler words such as <i>the</i>, <i>ang</i>, and <i>sa</i> are ignored, and word endings are trimmed, so <i>cracks</i>, <i>cracking</i>, and <i>cracked</i> all count as <i>crack</i>.</span></li>
+      <li><span class="gd-num">2</span><span><b>Finds the defect and how serious it is (D, 1 to 4).</b> A defect word names the type (<i>crack</i>, <i>bitak</i>, <i>honeycombing</i>, <i>tagas</i>). A condition word sets the level, for example <i>hairline</i> = 1 and <i>wide</i> = 4. If no condition is described, the type's usual level (2) is used.</span></li>
+      <li><span class="gd-num">3</span><span><b>Finds the building part and how serious its failure would be (C, 1 to 4).</b> A column, beam, or slab is 4; paint is 1. If no part is named, it uses <i>finishes affecting use</i> (2) and never assumes a load-bearing part; the one exception is <i>settlement</i>, which is the foundation itself moving, so it is read as the footing (4). Words about people at risk (<i>workers below</i>, <i>residents</i>) raise C by one.</span></li>
+      <li><span class="gd-num">4</span><span><b>Reads words that change the meaning.</b> <i>No</i>, <i>walang</i>, or <i>hindi</i> cancels what follows it in the same clause (<i>no cracks, but spalling on the beam</i> keeps only the spalling). Words like <i>severe</i> or <i>malaki</i> raise D by one; <i>minor</i> or <i>maliit</i> lower it by one.</span></li>
+      <li><span class="gd-num">5</span><span><b>Reads the severity from the grid.</b> The defect level (D) and the consequence level (C) point to one cell. The two numbers are never multiplied.</span></li>
+    </ol>
+    <p class="gd-sub" style="margin:16px 0 0"><b style="color:var(--text)">A report is flagged for the supervisor's review when:</b></p>
+    <ul class="gd-flags">
+      <li>no listed defect type is recognized, or no building part is named;</li>
+      <li>a defect word was matched through a misspelling;</li>
+      <li>a second defect type, or a more serious building part, is also mentioned;</li>
+      <li>a measurement such as <i>0.2 mm</i> is given (the engine does not grade measurements);</li>
+      <li>the inspector's own conclusion (<i>stop work</i>, <i>for NCR</i>) is two or more levels away from the result.</li>
+    </ul>
+  </section>
+
+  <section class="gd-card">
+    <h2>The severity grid</h2>
+    <p class="gd-sub">Find the row for the defect level and the column for the building part.</p>
+    <div class="table-wrap"><table class="gd-grid" id="gd-matrix"><tr><td class="gd-loading">Loading…</td></tr></table></div>
+  </section>
+
+  <section class="gd-card gd-try">
+    <h2>Try it</h2>
+    <p class="gd-sub">Type a finding the way an inspector would. Nothing is saved.</p>
+    <textarea class="form-control" id="gd-text" maxlength="1000" placeholder="e.g. Malalim na bitak sa biga, workers below"></textarea>
+    <div class="gd-try-row">
+      <select class="form-control" id="gd-phase">
+        <option value="construction">During construction</option>
+        <option value="post_completion">After completion</option>
+      </select>
+      <button class="btn btn-amber" id="gd-try-btn" type="button">Classify</button>
+    </div>
+    <div class="gd-result" id="gd-result"></div>
+  </section>
+
+  <section class="gd-card">
+    <h2>Defect levels (D)</h2>
+    <p class="gd-sub">What each level means for each defect type. The outlined level is used when no condition is described.</p>
+    <div id="gd-defects" class="gd-loading">Loading…</div>
+  </section>
+
+  <section class="gd-card">
+    <h2>Building parts (C)</h2>
+    <p class="gd-sub">How serious a failure of each part would be.</p>
+    <div class="table-wrap"><table id="gd-elements"><tr><td class="gd-loading">Loading…</td></tr></table></div>
+  </section>
+
+  <section class="gd-card">
+    <h2>Vocabulary</h2>
+    <p class="gd-sub">Every word and phrase the engine recognizes, what it does, and where it came from.</p>
+    <div class="gd-voc-tools">
+      <input class="form-control" id="gd-search" type="search" placeholder="Search a word, e.g. bitak, hairline, column"/>
+      <span class="gd-count" id="gd-count"></span>
+    </div>
+    <div class="gd-filters" id="gd-filters"></div>
+    <div class="table-wrap"><table class="gd-voc"><thead><tr><th>Word</th><th>What it does</th><th>Source</th></tr></thead><tbody id="gd-words"><tr><td colspan="3" class="gd-loading">Loading…</td></tr></tbody></table></div>
+  </section>
+
+  <section class="gd-card">
+    <h2>Writing a finding that classifies well</h2>
+    <ul class="gd-tips">
+      <li><b>Name the building part:</b> <i>crack on the column</i>, not just <i>crack</i>.</li>
+      <li><b>Describe the condition:</b> hairline, deep, wide, continuous, with rust, rebar visible.</li>
+      <li><b>One finding per report.</b> If you see two different problems, file two reports.</li>
+      <li><b>Mention people at risk</b> when there are any: workers below, residents, pedestrians.</li>
+      <li><b>Measurements are welcome</b> but are checked by the supervisor; the engine flags them instead of grading them.</li>
+      <li><b>English, Tagalog, or Taglish</b> are all fine. If a word is not in the vocabulary, the report is flagged so the supervisor decides.</li>
+    </ul>
+  </section>
+</main>
+<script src="guide.js"></script>
+</body>
+</html>

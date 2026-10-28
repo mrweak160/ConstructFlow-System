@@ -3,6 +3,23 @@ const API = 'api';
 
 let currentUser = null;
 
+// One tap, one request: the button that starts a save stays disabled until
+// the server answers, so a second tap on a slow connection cannot repeat it.
+let _lastTap = null;
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('button');
+  _lastTap = b ? { b, at: Date.now() } : null;
+}, true);
+const _fetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+  const saving = String(init.method || 'GET').toUpperCase() !== 'GET';
+  const b = saving && _lastTap && Date.now() - _lastTap.at < 2000 ? _lastTap.b : null;
+  if(b){ _lastTap = null; b.disabled = true; }
+  const p = _fetch(input, init);
+  if(b) p.then(() => { b.disabled = false; }, () => { b.disabled = false; });
+  return p;
+};
+
 const ROLE_SCREEN = {field_inspector:'inspector', supervisor:'supervisor', field_worker:'fieldworker', administrator:'admin'};
 const ROLE_PAGE   = {field_inspector:'inspector.html', supervisor:'supervisor.html', field_worker:'fieldworker.html', administrator:'admin.html'};
 // Maps each page's data-page short key -> the DB role required to view it.
@@ -60,7 +77,7 @@ async function initRolePage(pageKey){
   }
 
   if(session.role !== requiredRole){
-    window.location.href = ROLE_PAGE[session.role] || 'team.html';
+    window.location.replace(ROLE_PAGE[session.role] || 'team.html');
     return;
   }
 
@@ -85,6 +102,7 @@ async function doSignout(){
 function switchView(screen,view){
   const s = document.getElementById(screen);
   if(!s) return;
+  navRemember(screen, view);
 
   // Map screen + view to the actual element ID used in HTML
   const prefixMap = {inspector:'insp',supervisor:'sup',fieldworker:'fw',admin:'adm'};
@@ -106,6 +124,99 @@ function switchView(screen,view){
   closeSidebar();
   refreshView(screen,view);
 }
+
+// ── PHONE BACK BUTTON ────────────────────────────────────
+// Pages and windows here change without loading a new page, so history had
+// nothing to step back through and the phone's back button left the app.
+// One spare history entry now catches it. Back closes whatever is on top —
+// a dropdown, the photo viewer, a window, a menu, the side menu — then goes
+// to the page before, then to the dashboard. Only on the dashboard with
+// nothing open does a second press leave the app.
+const _navTrail = [];      // [screen, view] of the pages visited, newest last
+let _navArmed   = false;
+let _navBacking = false;   // a page change made by the back button itself
+
+function navArm(){
+  if(_navArmed) return;
+  try{ history.pushState({ cfBack: true }, ''); _navArmed = true; }catch(e){}
+}
+// The browser skips history entries added before the person has touched the
+// page, so the spare entry is (re)made on a tap.
+document.addEventListener('pointerdown', navArm, true);
+
+function navRemember(screen, view){
+  if(_navBacking) return;
+  const cur = document.querySelector(`#${screen} .view.active`);
+  const key = cur ? cur.id.slice(cur.id.indexOf('-') + 1) : null;
+  if(!key || key === view) return;
+  _navTrail.push([screen, key]);
+  if(_navTrail.length > 30) _navTrail.shift();
+}
+
+/** Closes the topmost open thing; false when nothing was open. */
+function navCloseTop(){
+  if(_ddOpen){ ddClose(); return true; }
+  const lb = document.querySelector('.lightbox-overlay.open');
+  if(lb){ closeLightbox(); return true; }
+  const ovs = [...document.querySelectorAll('.overlay.open')];
+  const top = ovs[ovs.length - 1];
+  if(top){
+    // The window's own ×, which also tidies up after itself (the filter
+    // overlay puts its bar back on the page).
+    const x = top.querySelector('.btn-close');
+    if(x) x.click(); else closeModal(top.id);
+    return true;
+  }
+  const menu = document.querySelector('[id$="-settings-menu"].open');
+  if(menu){ menu.classList.remove('open'); return true; }
+  if(document.querySelector('.sidebar.open')){ closeSidebar(); return true; }
+  return false;
+}
+
+window.addEventListener('popstate', () => {
+  if(!_navArmed) return;
+  _navArmed = false;
+  if(navCloseTop()){ navArm(); return; }
+
+  const screen = document.querySelector('.screen.active');
+  const prev = _navTrail.pop();
+  if(prev){
+    _navBacking = true;
+    switchView(prev[0], prev[1]);
+    _navBacking = false;
+    navArm();
+    return;
+  }
+  const cur = screen && screen.querySelector('.view.active');
+  if(screen && cur && !/-dashboard$/.test(cur.id)){
+    _navBacking = true;
+    switchView(screen.id, 'dashboard');
+    _navBacking = false;
+    navArm();
+    return;
+  }
+  // On the dashboard with nothing open: the next back leaves the app.
+  toast('Press back again to exit', 'info');
+  setTimeout(navArm, 2500);
+});
+
+// ── LIGHT / DARK MODE ────────────────────────────────────
+// Light is the default. The choice is kept on this device and applied by
+// the script in each portal's head before anything is drawn.
+function currentTheme(){
+  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+}
+function paintThemeSwitches(){
+  document.querySelectorAll('[data-theme-switch]').forEach(b =>
+    b.setAttribute('aria-checked', currentTheme() === 'dark' ? 'true' : 'false'));
+}
+function toggleTheme(){
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try{ localStorage.setItem('cf_theme', next); }catch(e){}
+  paintThemeSwitches();
+}
+document.addEventListener('DOMContentLoaded', paintThemeSwitches);
 
 function refreshScreen(screenId){
   if(screenId==='inspector'){ refreshInspector(); }
@@ -371,6 +482,10 @@ function admRenderSummary(d){
       stat('Open', t.open, 'amber') +
       stat('Past deadline', t.overdue, 'red');
 
+  // Charts follow the same filters as the figures and the table.
+  renderDashCharts('ar', d.rows || [], { kind: d.kind, from: d.filters.from, to: d.filters.to,
+                                         scope: 'In the selected range' });
+
   const head = isReports
     ? ['ID','Issue','Inspector','Engine','Final','Status','Submitted']
     : ['WO #','From report','Crew','Priority','Status','Raised','Days open'];
@@ -386,20 +501,22 @@ function admRenderSummary(d){
     return;
   }
 
+  // Each row opens its record read-only, with its own Save as PDF.
+  const openAr = r => isReports ? `openReportDetail('${r.report_id}')` : `openWODetail('${r.wo_id}')`;
   document.getElementById('ar-body').innerHTML = rows.map(r => isReports
-    ? `<tr>
+    ? `<tr ${rowOpen(openAr(r))}>
         <td>${esc(r.report_code)}</td>
         <td>${esc(r.title)}</td>
         <td>${esc(r.submitted_by_name)}</td>
         <td>${r.recommended_severity
               ? `<span class="badge badge-${esc(r.recommended_severity)}">${cap(r.recommended_severity)}</span>
-                 ${r.classification_confidence != null ? `<span style="color:var(--muted);font-size:11px"> ${esc(r.classification_confidence)}%</span>` : ''}`
+                 ${Number(r.needs_review) ? `<span style="color:var(--muted);font-size:11px"> · needs review</span>` : ''}`
               : '<span style="color:var(--muted)">—</span>'}</td>
         <td><span class="badge badge-${esc(r.severity)}">${cap(r.severity)}</span></td>
         <td>${statusBadge(r.status)}</td>
         <td style="white-space:nowrap">${fmtDate(r.submitted_at)}</td>
       </tr>`
-    : `<tr>
+    : `<tr ${rowOpen(openAr(r))}>
         <td>${esc(r.wo_code)}</td>
         <td>${esc(r.report_code)} — ${esc(r.report_title)}</td>
         <td>${esc(r.crew_names || r.assigned_to_name || '—')}</td>
@@ -410,13 +527,13 @@ function admRenderSummary(d){
       </tr>`).join('');
 
   document.getElementById('ar-cards').innerHTML = rows.map(r => isReports
-    ? `<div class="m-card">
+    ? `<div ${rowOpen(openAr(r), 'm-card')}>
          <div class="m-card-top"><div><div class="m-card-title">${esc(r.title)}</div>
            <div class="m-card-id">${esc(r.report_code)} • ${esc(r.submitted_by_name)}</div></div>
            <span class="badge badge-${esc(r.severity)}">${cap(r.severity)}</span></div>
          <div class="m-card-id">${fmtDate(r.submitted_at)}</div>
        </div>`
-    : `<div class="m-card">
+    : `<div ${rowOpen(openAr(r), 'm-card')}>
          <div class="m-card-top"><div><div class="m-card-title">${esc(r.report_title)}</div>
            <div class="m-card-id">${esc(r.wo_code)} → ${esc(r.crew_names || r.assigned_to_name || '—')}</div></div>
            <span class="badge badge-${esc(r.severity)}">${cap(r.severity)}</span></div>
@@ -511,6 +628,7 @@ async function renderInspDash(){
   setText('insp-stat-crit',  crit.length);
   setText('insp-stat-pend',  pend.length);
   setText('insp-stat-res',   res.length);
+  renderDashCharts('insp', reports, { scope: 'All my reports' });
   // "Recent" means newest first. The API orders by severity, so slicing it
   // straight would show the ten most severe, not the ten most recent — a
   // September critical would outrank anything filed today.
@@ -539,7 +657,7 @@ async function renderInspTaskList(){
   }
   el.innerHTML = lateFirst(tasks, taskOverdue).map(t=>`
     <div class="queue-card">
-      <div class="report-card-meta"><span style="font-size:12px;color:var(--muted)">${esc(t.task_code)}</span>${taskOverdue(t) ? overdueTag(t.due_date) : ''}</div>
+      <div class="report-card-meta"><span style="font-size:12px;color:var(--muted)">${esc(t.task_code)}</span>${taskOverdue(t) ? overdueTag(t.due_date) : ''}${dueSoonTag(t.due_date, t.status === 'assigned')}</div>
       <h4>${esc(t.title.toUpperCase())}</h4>
       <p>${esc(t.description || 'No additional instructions provided.')}</p>
       <div class="queue-card-foot">
@@ -565,6 +683,24 @@ function openSubmitFromTask(taskId){
   watchManualCoords();
   document.getElementById('photo-preview').innerHTML = '';
   window.selectedReportPhotos = [];
+
+  const draft = loadReportDraft(taskId);
+  if(draft){
+    document.getElementById('s-title').value   = draft.title || '';
+    document.getElementById('s-desc').value    = draft.desc || '';
+    document.getElementById('s-loc').value     = draft.loc || '';
+    document.getElementById('s-phase').value   = draft.phase || 'construction';
+    document.getElementById('s-address').value = draft.address || '';
+    gpsLat = draft.lat ?? null; gpsLng = draft.lng ?? null; gpsSource = draft.source || null;
+    if(draft.codes) gpsCodes = draft.codes;
+    toast('Your unsent draft for this task was restored. Add the photos again.', 'info');
+  }
+  const modal = document.getElementById('modal-submit');
+  if(!modal.dataset.draftWatch){
+    modal.addEventListener('input', saveReportDraft);
+    modal.addEventListener('change', saveReportDraft);
+    modal.dataset.draftWatch = '1';
+  }
   openModal('modal-submit');
   
 }
@@ -614,9 +750,7 @@ async function renderSupDash(){
   setText('sup-stat-pend',  reports.filter(r=>r.status==='pending').length);
   setText('sup-stat-wo',    wos.filter(w=>w.status!=='completed').length);
   setText('sup-stat-crit',  reports.filter(r=>r.severity==='high'||r.severity==='critical').length);
-  setText('sup-wo-assigned',reports.filter(r=>r.status==='assigned').length);
-  setText('sup-wo-inprog',  wos.filter(w=>w.status==='in_progress').length);
-  setText('sup-wo-done',    wos.filter(w=>w.status==='completed').length);
+  renderDashCharts('sup', reports);
 
   const pending = reports.filter(r=>r.status==='pending');
   const el = document.getElementById('sup-pending-list');
@@ -639,7 +773,19 @@ async function renderSupDash(){
         <span class="report-card-loc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(r.address_text || r.task_location || r.location_text)}</span>
         <button class="btn-assign" onclick="openAssign('${r.report_id}')">＋ Assign</button>
       </div>
-    </div>`).join('');
+    </div>`).join('')
+    // Only the five most severe fit here; say how many more are waiting.
+    + (pending.length > 5
+      ? `<button type="button" class="btn btn-dark btn-sm" style="width:100%;justify-content:center;margin-top:10px" onclick="showPendingReports()">View all ${pending.length} pending reports ›</button>`
+      : '');
+}
+
+// The dashboard link: Reports & Monitoring, filtered to pending.
+function showPendingReports(){
+  switchView('supervisor','reports');
+  const btn = [...document.querySelectorAll('.filter-btn')]
+    .find(b => (b.getAttribute('onclick') || '').includes("'pending'"));
+  if(btn) filterSupervisorReports(btn, 'pending');
 }
 async function renderSupReports(filter='all'){
   _supRepFilter = filter;
@@ -704,13 +850,13 @@ async function renderSupWO(){
     <td>${esc(w.assigned_to_name)}</td>
     <td><span class="badge badge-${w.severity}">${cap(w.severity)}</span></td>
     <td>${fmtDate(w.created_at)}</td>
-    <td>${woStatusBadge(w.status)}${woOverdue(w) ? overdueTag(w.deadline) : ''}</td>
+    <td>${woStatusBadge(w.status)}${woOverdue(w) ? overdueTag(w.deadline) : ''}${dueSoonTag(w.deadline, WO_WORKING.includes(w.status))}</td>
   </tr>`).join('');
   cards.innerHTML = wos.map(w=>`
     <div ${rowOpen(open(w), 'm-card')}>
       <div class="m-card-top"><div><div class="m-card-title">${esc(w.report_title)}</div><div class="m-card-id">${esc(w.wo_code)} → ${esc(w.assigned_to_name)}</div></div><span class="badge badge-${w.severity}">${cap(w.severity)}</span></div>
       <div class="m-card-loc">📍 ${esc(w.address_text || w.task_location || w.location_text)}</div>
-      <div class="m-card-footer">${woStatusBadge(w.status)}${woOverdue(w) ? overdueTag(w.deadline) : ''}</div>
+      <div class="m-card-footer">${woStatusBadge(w.status)}${woOverdue(w) ? overdueTag(w.deadline) : ''}${dueSoonTag(w.deadline, WO_WORKING.includes(w.status))}</div>
     </div>`).join('');
 }
 
@@ -757,7 +903,7 @@ async function renderSupTasks(){
     <td class="issue">${esc(t.title)}</td>
     <td>${esc(t.assigned_to_name)}</td>
     <td>${esc(t.location_text)}</td>
-    <td>${statusBadgeTask(t.status)}${taskOverdue(t) ? overdueTag(t.due_date) : ''}</td>
+    <td>${statusBadgeTask(t.status)}${taskOverdue(t) ? overdueTag(t.due_date) : ''}${dueSoonTag(t.due_date, t.status === 'assigned')}</td>
     <td>${t.due_date ? fmtDay(t.due_date) : '—'}</td>
   </tr>`).join('');
   cards.innerHTML = tasks.map(t=>`
@@ -803,7 +949,7 @@ function manageTaskMode(mode){
   document.getElementById('mt-edit').style.display = edit ? 'block' : 'none';
   ['mt-close-btn', 'mt-edit-btn'].forEach(id => document.getElementById(id).style.display = edit ? 'none' : '');
   ['mt-reassign-btn', 'mt-back-btn', 'mt-save-btn'].forEach(id => document.getElementById(id).style.display = edit ? '' : 'none');
-  if(edit) document.getElementById('mt-title').focus();
+  if(edit){ lockToFuture('mt-due'); document.getElementById('mt-title').focus(); }
 }
 
 async function saveManagedTask(){
@@ -811,10 +957,14 @@ async function saveManagedTask(){
   const title = document.getElementById('mt-title').value.trim();
   const loc   = document.getElementById('mt-loc').value.trim();
   if(!title || !loc){ toast('Title and location are required', 'error'); return; }
+  // An overdue task may keep its date; a new date cannot be in the past.
+  const due = document.getElementById('mt-due').value;
+  const was = _supTasks[id] && _supTasks[id].due_date ? String(_supTasks[id].due_date).slice(0, 10) : '';
+  if(due && due !== was && due < todayISO()){ toast('The due date must be today or a later date', 'error'); return; }
   const res = await admApi('tasks', 'update', {
     task_id: Number(id), title, location_text: loc,
     description: document.getElementById('mt-desc').value.trim(),
-    due_date:    document.getElementById('mt-due').value
+    due_date:    due
   });
   if(!res.success){ toast(res.message || 'Could not save the task', 'error'); return; }
   closeModal('modal-manage-task');
@@ -1017,7 +1167,7 @@ async function renderFWQueue(){
   }
   el.innerHTML = sorted.map(w=>`
     <div ${rowOpen(`openWODetail('${w.wo_id}')`, `queue-card${w.status==='completed'?' done':''}`)}>
-      <div class="queue-card-top"><span class="badge badge-${w.severity}">${cap(w.severity)}</span>${woStatusBadge(w.status)}${woOverdue(w) ? overdueTag(w.deadline) : ''}<span style="font-size:12px;color:var(--muted)">${esc(w.wo_code)}</span></div>      <h4>${esc(w.report_title.toUpperCase())}</h4>
+      <div class="queue-card-top"><span class="badge badge-${w.severity}">${cap(w.severity)}</span>${woStatusBadge(w.status)}${woOverdue(w) ? overdueTag(w.deadline) : ''}${dueSoonTag(w.deadline, WO_WORKING.includes(w.status))}<span style="font-size:12px;color:var(--muted)">${esc(w.wo_code)}</span></div>      <h4>${esc(w.report_title.toUpperCase())}</h4>
       <p>${esc(w.instructions||'No special instructions provided.')}</p>
       ${w.status==='rework' ? `<div style="margin-top:8px;padding:9px 11px;border-left:3px solid var(--red);background:rgba(239,68,68,.08);font-size:12.5px;color:var(--label);line-height:1.6"><strong style="color:var(--red)">Sent back:</strong> ${esc(w.latest_remarks || 'No reason given.')}</div>` : ''}
       ${w.crew_names && w.crew_names.includes(',') ? `<div style="font-size:11.5px;color:var(--muted);margin-top:6px">Crew: ${esc(w.crew_names)}</div>` : ''}
@@ -1028,7 +1178,7 @@ async function renderFWQueue(){
           ? `<button class="btn btn-amber btn-sm" onclick="openUpdateTask('${w.wo_id}')">Process Task &rsaquo;</button>`
           : `<span style="font-size:11.5px;color:var(--muted)">Supporting &mdash; ${esc(w.assigned_to_name || 'lead')} leads</span>`}
       </div>
-      ${w.latest_remarks?`<div style="margin-top:10px;padding:8px 10px;background:rgba(255,255,255,.03);border-radius:6px;font-size:12px;color:var(--muted)">Last update: ${esc(w.latest_remarks)}</div>`:''}
+      ${w.latest_remarks?`<div style="margin-top:10px;padding:8px 10px;background:var(--tint);border-radius:6px;font-size:12px;color:var(--muted)">Last update: ${esc(w.latest_remarks)}</div>`:''}
     </div>`).join('');
 }
 
@@ -1209,9 +1359,10 @@ async function openMemberProfile(userId){
 
 // ── MEMBERS ──────────────────────────────────────────────
 async function renderAdmMembers(){
-  const [res, inv] = await Promise.all([
+  const [res, inv, former] = await Promise.all([
     admApi('teams','members'),
-    admApi('teams','invites')
+    admApi('teams','invites'),
+    admApi('teams','former_members')
   ]);
   if(!res.success){ toast(res.message,'error'); return; }
 
@@ -1220,17 +1371,16 @@ async function renderAdmMembers(){
   const me = currentUser ? currentUser.user_id : 0;
 
   $('adm-member-table').innerHTML = _admMembers.map(m=>{
-    const isSelf     = Number(m.user_id) === Number(me);
-    const isAdminRow = m.role === 'administrator';
+    const isSelf  = Number(m.user_id) === Number(me);
+    const isOwner = Number(m.is_owner) === 1;
 
     // A flex row with a gap, rather than a fixed-width span. The old
     // width:100px was narrower than the "Change role" button actually renders,
     // so it overflowed and collided with "Remove". The first slot keeps a
     // min-width so the Remove buttons still line up down the column.
-    const actions = isAdminRow
-      ? (isSelf
-          ? '<span class="adm-actions"><span class="adm-actions-slot adm-actions-note">Administrator</span></span>'
-          : `<span class="adm-actions"><span class="adm-actions-slot adm-actions-note">Administrator</span><button class="action-link" style="color:var(--red)" onclick="removeMember(${m.user_id})">Remove</button></span>`)
+    // Nobody changes their own role, and the owner's is fixed.
+    const actions = (isSelf || isOwner)
+      ? `<span class="adm-actions"><span class="adm-actions-slot adm-actions-note">${isOwner ? 'Owner' : 'Administrator'}</span></span>`
       : `<span class="adm-actions"><span class="adm-actions-slot"><button class="action-link" onclick="openAssignRole(${m.user_id})">Change role</button></span>`
         + `<button class="action-link" style="color:var(--red)" onclick="removeMember(${m.user_id})">Remove</button></span>`;
         
@@ -1248,13 +1398,11 @@ async function renderAdmMembers(){
     </tr>`;
   }).join('');
   $('adm-member-cards').innerHTML = _admMembers.map(m=>{
-    const isSelf     = Number(m.user_id) === Number(me);
-    const isAdminRow = m.role === 'administrator';
+    const isSelf  = Number(m.user_id) === Number(me);
+    const isOwner = Number(m.is_owner) === 1;
 
-    const actions = isAdminRow
-      ? (isSelf
-          ? '<span style="font-size:12px;color:var(--muted)">Administrator</span>'
-          : `<span style="font-size:12px;color:var(--muted)">Administrator</span> <button class="action-link" style="color:var(--red)" onclick="removeMember(${m.user_id})">Remove</button>`)
+    const actions = (isSelf || isOwner)
+      ? `<span style="font-size:12px;color:var(--muted)">${isOwner ? 'Owner' : 'Administrator'}</span>`
       : `<button class="action-link" onclick="openAssignRole(${m.user_id})">Change role</button>` +
         ` <button class="action-link" style="color:var(--red);margin-left:14px" onclick="removeMember(${m.user_id})">Remove</button>`;
 
@@ -1275,6 +1423,55 @@ async function renderAdmMembers(){
   }).join('');
 
   renderAdmInvites(inv.success ? inv.data.invitations : []);
+  renderAdmFormer(former.success ? former.data.former_members : []);
+}
+
+// ── FORMER MEMBERS ───────────────────────────────────────
+// Removed members, newest first. Erased ones are tagged; someone still on
+// another team cannot be erased from here, so they get a note instead.
+let _admFormer = [];
+const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>';
+
+function renderAdmFormer(list){
+  _admFormer = list;
+  $('adm-former-card').style.display = list.length ? '' : 'none';
+  setText('adm-former-count', list.length);
+  $('adm-former-list').innerHTML = list.map(f => {
+    const act = Number(f.erased)
+      ? '<span class="former-tag">Erased</span>'
+      : Number(f.elsewhere)
+        ? '<span class="former-note">On another team</span>'
+        : `<button type="button" class="icon-btn former-del" title="Erase personal details"
+             aria-label="Erase ${esc(f.name)}'s personal details" onclick="openEraseMember(${Number(f.user_id)})">${TRASH_ICON}</button>`;
+    return `<div class="former-row">
+      ${avatarHtml(f.name, f.avatar_path, ADM_ROLE_AV[f.role]||'av-amber', 28, 11)}
+      <div class="former-who">
+        <div class="former-name">${esc(f.name)}</div>
+        <div class="former-meta">${ADM_ROLE_LABEL[f.role]||esc(f.role)} · removed ${fmtDay(f.removed_at)}</div>
+      </div>${act}</div>`;
+  }).join('');
+}
+
+function openEraseMember(userId){
+  const f = _admFormer.find(x => Number(x.user_id) === Number(userId));
+  if(!f) return;
+  $('em-id').value = f.user_id;
+  setText('em-name', f.name);
+  setText('em-sub', `${ADM_ROLE_LABEL[f.role]||f.role} · removed ${fmtDay(f.removed_at)}`);
+  $('em-pass').value = '';
+  openModal('modal-erase-member');
+  setTimeout(() => $('em-pass').focus(), 50);
+}
+
+async function confirmEraseMember(){
+  const pass = $('em-pass').value;
+  if(!pass){ toast('Enter your password to confirm.','error'); $('em-pass').focus(); return; }
+  const res = await admApi('teams','erase_member',{ user_id: Number($('em-id').value), password: pass });
+  if(!res.success){ toast(res.message,'error'); $('em-pass').select(); return; }
+  $('em-pass').value = '';
+  closeModal('modal-erase-member');
+  toast(res.message,'success');
+  renderAdmMembers();
 }
 
 function renderAdmInvites(invites){
@@ -1406,6 +1603,35 @@ async function renderAdmTeam(){
 
   $('adm-team-name-inp').value = _admTeam.name;
   $('adm-team-desc-inp').value = _admTeam.description || '';
+
+  // Deletable only by its last member.
+  const others = Number(_admTeam.member_count) - 1;
+  $('team-del-btn').disabled = others > 0;
+  setText('team-del-note', others > 0
+    ? `Remove the other ${others} member${others === 1 ? '' : 's'} first. A team can be deleted only when you are its last member.`
+    : 'You are the last member. Deleting closes the team for good; its reports, work orders and activity log are kept on record.');
+}
+
+function openDeleteTeam(){
+  if(!_admTeam || Number(_admTeam.member_count) > 1) return;
+  setText('dt-name', _admTeam.name);
+  setText('dt-sub', `${_admTeam.name} · created ${fmtDate(_admTeam.created_at)}`);
+  $('dt-pass').value = '';
+  closeModal('modal-team');
+  openModal('modal-delete-team');
+  setTimeout(() => $('dt-pass').focus(), 50);
+}
+
+async function confirmDeleteTeam(){
+  const pass = $('dt-pass').value;
+  if(!pass){ toast('Enter your password to confirm.','error'); $('dt-pass').focus(); return; }
+  const res = await admApi('teams','delete_team',{ password: pass });
+  if(!res.success){ toast(res.message,'error'); $('dt-pass').select(); return; }
+  $('dt-pass').value = '';
+  closeModal('modal-delete-team');
+  toast(res.message,'success');
+  // The team is gone: the gate offers to create or join another.
+  setTimeout(() => location.replace((res.data && res.data.redirect) || 'team.html'), 1200);
 }
 
 function teamView(){
@@ -1522,22 +1748,98 @@ function exportRecords(){
 // REPORT SUBMISSION
 // ════════════════════════════════════════
 
+// One submission carries at most 10 photos; the server refuses more
+// (MAX_PHOTOS_COUNT in config/helpers.php).
+const MAX_PHOTOS = 10;
+
+// Trims a new pick to the room left and says so, instead of the extra
+// photos being dropped quietly after the report is sent.
+function photosThatFit(files, staged){
+  const room = Math.max(0, MAX_PHOTOS - staged.length);
+  if(files.length > room){
+    toast(room
+      ? `You can attach up to ${MAX_PHOTOS} photos. Only ${room} of the ${files.length} selected ${room === 1 ? 'was' : 'were'} added.`
+      : `You can attach up to ${MAX_PHOTOS} photos. Remove one before adding another.`, 'error');
+  }
+  return files.slice(0, room);
+}
+
+// Last check before sending: every photo prepared, and no more than the limit.
+function photosNotReady(staged){
+  if(_photosPending){ toast('Photos are still being prepared. Try again in a moment.', 'info'); return true; }
+  if(staged.length <= MAX_PHOTOS) return false;
+  toast(`You can attach up to ${MAX_PHOTOS} photos. Remove ${staged.length - MAX_PHOTOS} and try again.`, 'error');
+  return true;
+}
+
+// Phone photos are 3 to 6 MB each, and a few of them together pass the
+// server's upload limit. Each one is scaled to at most 1600 px on its longest
+// side and saved as JPEG, which keeps a defect readable at a few hundred KB.
+const PHOTO_MAX_SIDE = 1600;
+async function shrinkPhoto(file){
+  if(!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 500 * 1024) return file;
+  try{
+    const bmp   = await createImageBitmap(file, { imageOrientation: 'from-image' });
+    const scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width  = Math.round(bmp.width * scale);
+    c.height = Math.round(bmp.height * scale);
+    const g = c.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);   // a transparent PNG gets a white page
+    g.drawImage(bmp, 0, 0, c.width, c.height);
+    if(bmp.close) bmp.close();
+    const blob = await new Promise(done => c.toBlob(done, 'image/jpeg', 0.82));
+    if(!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+  }catch(e){
+    return file;   // this browser cannot decode it; send it as it is and let the server check it
+  }
+}
+
+// Shrinks, previews and stages a pick. _photosPending holds the send button
+// back until every photo is ready.
+let _photosPending = 0;
+function stagePhotos(files, staged, render){
+  files.forEach(async original => {
+    _photosPending++;
+    try{
+      const file    = await shrinkPhoto(original);
+      const dataUrl = await new Promise((done, fail) => {
+        const reader = new FileReader();
+        reader.onload  = e => done(e.target.result);
+        reader.onerror = fail;
+        reader.readAsDataURL(file);
+      });
+      staged.push({ file, dataUrl });
+      render();
+    }catch(e){
+      toast(`${original.name} could not be read.`, 'error');
+    }finally{
+      _photosPending--;
+    }
+  });
+}
+
+// A reply that is not JSON (PHP printing a warning before it, as it does for
+// an upload over the limit) becomes a readable error instead of a crash.
+async function readJson(res){
+  try{ return await res.json(); }
+  catch(e){
+    return { success:false, message: res.status === 413
+      ? 'The photos are too large to send together. Remove some photos and try again.'
+      : 'The server sent an unexpected reply. Nothing was saved.' };
+  }
+}
+
 // selectedReportPhotos holds { file, dataUrl } for every photo currently
 // staged for this submission. New picks are added on top, not replaced.
 window.selectedReportPhotos = window.selectedReportPhotos || [];
 
 function handlePhotos(input){
-  const files = [...input.files];
+  const files = photosThatFit([...input.files], window.selectedReportPhotos);
   if(!files.length) return;
 
-  files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      window.selectedReportPhotos.push({ file, dataUrl: e.target.result });
-      renderReportPhotoPreview();
-    };
-    reader.readAsDataURL(file);
-  });
+  stagePhotos(files, window.selectedReportPhotos, renderReportPhotoPreview);
 
   input.value = ''; // reset so picking the same file again still fires onchange
 }
@@ -1559,17 +1861,10 @@ function removeReportPhoto(index){
 window.selectedTaskPhotos = window.selectedTaskPhotos || [];
 
 function handlePhotosTask(input){
-  const files = [...input.files];
+  const files = photosThatFit([...input.files], window.selectedTaskPhotos);
   if(!files.length) return;
 
-  files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      window.selectedTaskPhotos.push({ file, dataUrl: e.target.result });
-      renderTaskPhotoPreview();
-    };
-    reader.readAsDataURL(file);
-  });
+  stagePhotos(files, window.selectedTaskPhotos, renderTaskPhotoPreview);
 
   input.value = '';
 }
@@ -1592,14 +1887,7 @@ function removeTaskPhoto(index){
 window.selectedSitePhotos = [];
 
 function handleSitePhotos(input){
-  [...input.files].forEach(file => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      window.selectedSitePhotos.push({ file, dataUrl: e.target.result });
-      renderSitePhotoPreview();
-    };
-    reader.readAsDataURL(file);
-  });
+  stagePhotos(photosThatFit([...input.files], window.selectedSitePhotos), window.selectedSitePhotos, renderSitePhotoPreview);
   input.value = '';
 }
 
@@ -1727,8 +2015,30 @@ function watchManualCoords(){
 
 let boundTaskId = null;
 
+// An unsent report survives a reload or an expired sign-in. Kept in this
+// browser only, per user and task; photos cannot be kept and are added again.
+const reportDraftKey = taskId => `cf_report_draft_${currentUser ? currentUser.user_id : 0}_${taskId}`;
+function saveReportDraft(){
+  if(!boundTaskId) return;
+  const d = {
+    title: $('#s-title').value, desc: $('#s-desc').value, loc: $('#s-loc').value,
+    phase: $('#s-phase').value, address: document.getElementById('s-address').value,
+    lat: gpsLat, lng: gpsLng, source: gpsSource, codes: gpsCodes
+  };
+  try{
+    if(d.title.trim() || d.desc.trim() || d.loc.trim()) localStorage.setItem(reportDraftKey(boundTaskId), JSON.stringify(d));
+  }catch(e){}
+}
+function loadReportDraft(taskId){
+  try{ return JSON.parse(localStorage.getItem(reportDraftKey(taskId)) || 'null'); }catch(e){ return null; }
+}
+function clearReportDraft(taskId){
+  try{ localStorage.removeItem(reportDraftKey(taskId)); }catch(e){}
+}
+
 async function submitReport(){
   if(!boundTaskId){ toast('No inspection task selected. Please open this form from an assigned task.','error'); return; }
+  saveReportDraft();   // so nothing typed is lost if this send fails
 
   const title = $('#s-title').value.trim();
   const desc  = $('#s-desc').value.trim();
@@ -1750,7 +2060,7 @@ async function submitReport(){
   if(gpsCodes.brgy_code){     fd.append('brgy_code',     gpsCodes.brgy_code); }
   fd.append('address_text', document.getElementById('s-address').value.trim());
 
-  // attach the first selected photo, if any (backend only accepts one)
+  if(photosNotReady(window.selectedReportPhotos)) return;
   window.selectedReportPhotos.forEach(p => fd.append('photos[]', p.file));
   fd.append('csrf_token', window.CSRF_TOKEN || '');
 
@@ -1759,7 +2069,11 @@ async function submitReport(){
     credentials: 'include',
     body: fd
   });
-  const data = await res.json();
+  const data = await readJson(res);
+  if(res.status === 401){
+    toast('Your sign-in has expired. Sign in again and reopen this task; what you typed is saved as a draft.', 'error');
+    return;
+  }
 
   if(data.success){
     closeModal('modal-submit'); // also clears staged photos, see closeModal() below
@@ -1773,8 +2087,8 @@ async function submitReport(){
       toast(filed !== sev
         ? `No defect type recognised — filed as ${filed} for the supervisor to reassess`
         : c.needs_review
-        ? `Classified ${sev} (confidence ${c.confidence}%) — flagged for supervisor review`
-        : `Classified ${sev} (confidence ${c.confidence}%)`,
+        ? `Classified ${sev} — flagged for supervisor review`
+        : `Classified ${sev}`,
         c.needs_review ? 'info' : 'success');
     }
 
@@ -1783,6 +2097,7 @@ async function submitReport(){
       toast(`${warnings.length} photo${warnings.length>1?'s':''} skipped: ${warnings.join(' ')}`, 'error');
     }
 
+    clearReportDraft(boundTaskId);
     boundTaskId = null;
     refreshActiveView();
   } else {
@@ -1828,7 +2143,7 @@ async function openAssign(reportId){
   const sevView = document.getElementById('a-sev-view');
   if(sevView){
     sevView.innerHTML = `<span class="badge badge-${esc(r.severity)}">${cap(r.severity)}</span>`
-      + (r.recommended_severity ? `<span class="sev-conf">${esc(r.classification_confidence)}% confidence</span>` : '')
+      + (r.recommended_severity && Number(r.needs_review) ? '<span class="sev-conf">Needs review</span>' : '')
       + (r.recommended_severity && r.classification_notes
           ? infoIcon('<strong>Engine notes.</strong><br>' + esc(r.classification_notes).replace(/\n/g, '<br>'), 'Why the engine chose this') : '');
   }
@@ -1905,6 +2220,7 @@ async function updateTaskStatus(){
   const status = document.getElementById('ut-status').value;
   const remarks= document.getElementById('ut-remarks').value.trim();
   if(!remarks){ toast('Please add an activity report / remarks','error'); return; }
+  if(photosNotReady(window.selectedTaskPhotos)) return;
 
   const fd = new FormData();
   fd.append('wo_id',   woId);
@@ -1918,7 +2234,7 @@ async function updateTaskStatus(){
     credentials: 'include',
     body: fd
   });
-  const data = await res.json();
+  const data = await readJson(res);
 
   if(data.success){
     closeModal('modal-update-task'); // also clears staged photos, see closeModal()
@@ -1985,7 +2301,7 @@ async function openReportDetail(reportId, extra = null, extraId = null){
     <div class="detail-row"><span class="detail-label">Location</span><span class="detail-value">${esc(r.address_text || r.task_location || r.location_text)}</span></div>
     <div class="detail-row"><span class="detail-label">Severity</span><span class="detail-value"><span class="badge badge-${r.severity}">${cap(r.severity)}</span></span></div>
     ${r.recommended_severity ? `
-    <div class="detail-row"><span class="detail-label">Engine Recommendation</span><span class="detail-value"><span class="badge badge-${r.recommended_severity}">${cap(r.recommended_severity)}</span> D${esc(String(r.d_level))}/C${esc(String(r.c_level))} · ${esc(String(r.classification_confidence))}% confidence</span></div>
+    <div class="detail-row"><span class="detail-label">Engine Recommendation</span><span class="detail-value"><span class="badge badge-${r.recommended_severity}">${cap(r.recommended_severity)}</span> D${esc(String(r.d_level))}/C${esc(String(r.c_level))}${Number(r.needs_review) ? ' · Needs review' : ''}</span></div>
     ${r.severity_overridden_at ? `<div class="detail-row"><span class="detail-label">Overridden</span><span class="detail-value">Changed to ${cap(r.severity)} on ${fmtDate(r.severity_overridden_at)}</span></div>` : ''}` : ''}
     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${statusBadge(r.status)}</span></div>
     <div class="detail-row"><span class="detail-label">Inspector</span><span class="detail-value">${esc(r.submitted_by_name)}</span></div>
@@ -1995,7 +2311,7 @@ async function openReportDetail(reportId, extra = null, extraId = null){
   setDetailActions([
     extra === 'assign'     ? { label: 'Assign Work Order', js: `openAssign('${reportId}')` }     : null,
     extra === 'edit'       ? { label: 'Edit Report',       js: `openEditReport('${reportId}')` } : null,
-    extra === 'close-task' ? { label: 'Close Task',        js: `closeTask('${extraId}')` }       : null
+    extra === 'close-task' ? { label: 'Close Task',        js: `closeTask('${extraId}')`, danger: true } : null
   ]);
   setPrintTarget('report', reportId, reportId);
   openModal('modal-report-detail');
@@ -2023,7 +2339,7 @@ async function openWODetail(woId, extra = null){
     <div class="detail-row"><span class="detail-label">Assigned To</span><span class="detail-value">${esc(w.assigned_to_name || 'Unassigned')}</span></div>
     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${woStatusBadge(w.status)}</span></div>
     ${w.status==='pending_inspector' && w.verify_inspector_name ? `<div class="detail-row"><span class="detail-label">Verifying Inspector</span><span class="detail-value">${esc(w.verify_inspector_name)}</span></div>` : ''}
-    <div class="detail-row"><span class="detail-label">Deadline</span><span class="detail-value">${w.deadline ? fmtDay(w.deadline) : 'None set'}${woOverdue(w) ? overdueTag(w.deadline) : ''}</span></div>
+    <div class="detail-row"><span class="detail-label">Deadline</span><span class="detail-value">${w.deadline ? fmtDay(w.deadline) : 'None set'}${woOverdue(w) ? overdueTag(w.deadline) : ''}${dueSoonTag(w.deadline, WO_WORKING.includes(w.status))}</span></div>
     <div class="detail-row"><span class="detail-label">Created</span><span class="detail-value">${fmtDate(w.created_at)}</span></div>
     ${w.updated_at?`<div class="detail-row"><span class="detail-label">Last Updated</span><span class="detail-value">${fmtDate(w.updated_at)}</span></div>`:''}
     ${w.instructions?`<div style="margin-top:14px"><div style="font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600">Work Instructions</div><div style="font-size:13px;color:var(--label);line-height:1.6">${esc(w.instructions)}</div></div>`:''}
@@ -2384,9 +2700,13 @@ function rowOpen(js, cls = ''){
 function setDetailActions(buttons){
   const slot = document.getElementById('rd-actions');
   if(!slot) return;
-  slot.innerHTML = (buttons || []).filter(Boolean).map(b =>
-    `<button class="btn btn-dark" onclick="closeModal('modal-report-detail');${b.js}">${esc(b.label)}</button>`
-  ).join('');
+  const list = (buttons || []).filter(Boolean);
+  const btn  = b => `<button class="btn ${b.danger ? 'btn-danger-solid rd-danger' : 'btn-dark'}" onclick="closeModal('modal-report-detail');${b.js}">${esc(b.label)}</button>`;
+  slot.innerHTML = list.filter(b => !b.danger).map(btn).join('');
+  // A destructive action sits apart, at the left end of the Close row.
+  const footer = slot.parentElement;
+  footer.querySelectorAll('.rd-danger').forEach(e => e.remove());
+  footer.insertAdjacentHTML('afterbegin', list.filter(b => b.danger).map(btn).join(''));
 }
 
 function renderReportTable(tbodyId, cardsId, reports, role){
@@ -2443,6 +2763,15 @@ function lateFirst(items, isLate){
 /** The red tag, with the missed date on hover. */
 function overdueTag(due){
   return ` <span class="tag-overdue" title="Due ${esc(fmtDay(due))}">Overdue</span>`;
+}
+// Due within the next 3 days: the same window as the reminder email
+// (tools/reminders.php). Nothing once it is overdue or no longer open.
+function dueSoonTag(due, open){
+  if(!due || !open) return '';
+  const days = Math.round((new Date(String(due).slice(0, 10) + 'T00:00') - new Date(todayISO() + 'T00:00')) / 86400000);
+  if(days < 0 || days > 3) return '';
+  const when = days === 0 ? 'Due today' : days === 1 ? 'Due tomorrow' : `Due in ${days} days`;
+  return ` <span class="tag-due-soon" title="Due ${esc(fmtDay(due))}">${when}</span>`;
 }
 /** A DATE column as a date. fmtDate() reads 'YYYY-MM-DD' as UTC midnight
  *  and would print a time nobody entered. */
@@ -2505,8 +2834,9 @@ function timeAgo(iso){
   if(diff<86400) return Math.floor(diff/3600)+'h ago';return Math.floor(diff/86400)+'d ago';
 }
 function statusBadge(s){
-  const m={pending:'badge-pending pending',assigned:'badge-assigned assigned',in_progress:'badge-inprogress',completed:'badge-completed completed',rejected:'badge-pending'};
-  const l={pending:'Pending',assigned:'Assigned',in_progress:'In Progress',completed:'Completed',rejected:'Rejected'};
+  const m={pending:'badge-pending pending',assigned:'badge-assigned assigned',in_progress:'badge-inprogress',completed:'badge-completed completed',rejected:'badge-green'};
+  // 'rejected' is a report whose task was closed without a work order.
+  const l={pending:'Pending',assigned:'Assigned',in_progress:'In Progress',completed:'Completed',rejected:'Closed'};
   return `<span class="badge ${m[s]||'badge-pending'}">${l[s]||cap(s)}</span>`;
 }
 function woStatusBadge(s){
@@ -2518,8 +2848,15 @@ function toast(msg, type='success'){
   const c = document.getElementById('toasts');
   const icons={success:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>',error:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',info:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'};
   const t = document.createElement('div');
-  t.className=`toast toast-${type}`;t.innerHTML=icons[type]+esc(msg);c.appendChild(t);
-  setTimeout(()=>t.remove(),3500);
+  t.className=`toast toast-${type}`;t.innerHTML=icons[type]+esc(msg);
+  // Long enough to read: about 45 ms a character, errors longest; a tap
+  // dismisses any message early.
+  t.title = 'Tap to dismiss';
+  t.addEventListener('click', () => t.remove());
+  c.appendChild(t);
+  const ms = type === 'error' ? Math.min(12000, 4000 + String(msg).length * 45)
+                             : Math.min(8000,  3000 + String(msg).length * 45);
+  setTimeout(()=>t.remove(), ms);
 }
 
 // show password
@@ -2772,7 +3109,10 @@ async function renderVerifyQueue(role){
   // The supervisor owns two stages: the first review, and the final closure
   // after the inspector has confirmed on site.
   const want = role === 'supervisor' ? ['pending_supervisor','pending_closure'] : ['pending_inspector'];
-  const wos  = (await myWorkOrders()).filter(w => want.includes(w.status));
+  // An inspector sees only the site checks they were named for; the
+  // server already refuses a check by anyone else.
+  const wos  = (await myWorkOrders()).filter(w => want.includes(w.status)
+    && (role === 'supervisor' || Number(w.verify_inspector_id) === Number(currentUser.user_id)));
 
   // Separate key per role so the supervisor's choice and the inspector's
   // choice do not overwrite each other.
@@ -2921,6 +3261,7 @@ async function submitVerify(decision){
     toast('Add at least one photo of the finished work','error');
     return;
   }
+  if(onSite && photosNotReady(window.selectedSitePhotos)) return;
 
   const fd = new FormData();
   fd.append('wo_id',    woId);
@@ -2932,7 +3273,7 @@ async function submitVerify(decision){
 
   const res = await fetch('api/workorders.php?action=verify', {
     method:'POST', credentials:'include', body: fd
-  }).then(r=>r.json()).catch(()=>({ success:false, message:'Cannot reach the server.' }));
+  }).then(readJson).catch(()=>({ success:false, message:'Cannot reach the server.' }));
 
   toast(res.message, res.success ? 'success' : 'error');
   const warnings = (res.data && res.data.photo_warnings) || [];
@@ -3146,7 +3487,7 @@ async function submitEditReport(){
   if(!res.success){ toast(res.message,'error'); return; }
 
   closeModal('modal-edit-report');
-  toast(`${res.message} Now ${String(res.data.severity).toUpperCase()} (${res.data.confidence}%)`, 'success');
+  toast(`${res.message} Now ${String(res.data.severity).toUpperCase()}${res.data.needs_review ? ' — flagged for supervisor review' : ''}`, 'success');
   refreshActiveView();
 }
 

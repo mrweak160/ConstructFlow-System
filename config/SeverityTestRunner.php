@@ -74,7 +74,6 @@ final class SeverityTestRunner
                 'actual_dc'     => "D{$r['d_level']}/C{$r['c_level']}",
                 'defect_match'  => $t['expected_defect_type_id'] === null
                                    || (int)$t['expected_defect_type_id'] === (int)$r['defect_type_id'],
-                'confidence'    => $r['confidence'],
                 'needs_review'  => $r['needs_review'],
                 'matched_terms' => $r['matched_terms'],
                 'notes'         => $r['notes'],
@@ -95,10 +94,10 @@ final class SeverityTestRunner
         $out = sprintf("Run #%d: %d/%d passed\n\n", $result['run_id'], $result['passed'], $result['total']);
         foreach ($result['rows'] as $r) {
             $out .= sprintf(
-                "%-4s %-10s %-9s expected %-8s got %-8s %-9s conf %3d%s%s\n       \"%s\"\n       terms: %s\n",
+                "%-4s %-10s %-9s expected %-8s got %-8s %-9s%s%s\n       \"%s\"\n       terms: %s\n",
                 $r['passed'] ? 'PASS' : 'FAIL',
                 $r['code'], $r['kind'], $r['expected'], $r['actual'] ?? '-',
-                $r['actual_dc'], $r['confidence'],
+                $r['actual_dc'],
                 $r['defect_match'] ? '' : '  [defect type differs]',
                 $r['needs_review'] ? '  [review]' : '',
                 $r['description'],

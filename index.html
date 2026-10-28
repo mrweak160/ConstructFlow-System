@@ -22,16 +22,24 @@
    a solid border, a flat drop shadow, and the photographs.
    ═══════════════════════════════════════════════════════ */
 .landing{
-  --lp-bg:#0d1016;
-  --lp-surf:#161b27;        /* every card, one flat value */
-  --lp-surf-2:#1b2130;      /* one step lighter, for bars and headers */
-  --lp-line:#272f44;
-  --lp-line-lit:#39435f;
-  --lp-dim:#97a4bd;
-  --lp-dim-2:#73819c;
+  /* Light, as the portals: the mock-up's slate palette. */
+  --lp-bg:#f8fafc;
+  --lp-surf:#ffffff;        /* every card, one flat value */
+  --lp-surf-2:#f1f5f9;      /* one step darker, for bars and hovers */
+  --lp-line:#e2e8f0;
+  --lp-line-lit:#cbd5e1;
+  --lp-dim:#475569;
+  --lp-dim-2:#64748b;
+  --lp-head:#0f172a;        /* headings and strong text */
+  --lp-acc-ink:#b45309;     /* amber as text on white */
   --lp-acc:#f59e0b;
   --lp-acc-dk:#d97706;
   --lp-ink:#1b1302;         /* text that sits on amber */
+  --lp-sh:0 14px 30px -16px rgba(15,23,42,.25);
+}
+/* The hero photo panel stays dark, so inside it the dark palette returns. */
+.lp-stage{
+  --lp-line:#272f44;--lp-line-lit:#39435f;--lp-dim:#97a4bd;--lp-dim-2:#73819c;
   --lp-sh:0 14px 30px -16px rgba(0,0,0,.8);
 }
 
@@ -41,7 +49,7 @@ html{height:auto;background:var(--lp-bg);-webkit-text-size-adjust:100%}
 body.landing{
   height:auto;min-height:100%;
   background:var(--lp-bg);
-  overflow-x:hidden;color:#eef2f8;
+  overflow-x:hidden;color:var(--lp-head);
 }
 
 .lp-wrap{max-width:1140px;margin:0 auto;padding:0 24px}
@@ -55,13 +63,13 @@ body.landing{
 .lp-nav .lp-wrap{display:flex;align-items:center;gap:26px;min-height:66px}
 .lp-brand{display:flex;align-items:center;gap:10px;margin-right:auto;text-decoration:none}
 .lp-brand .logo-badge{width:32px;height:32px;border-radius:8px}
-.lp-brand span{font-weight:700;font-size:15px;color:#eef2f8;letter-spacing:-.25px}
+.lp-brand span{font-weight:700;font-size:15px;color:var(--lp-head);letter-spacing:-.25px}
 .lp-links{display:flex;align-items:center;gap:4px}
 .lp-links a.lp-link{
   font-size:13px;font-weight:550;color:var(--lp-dim);text-decoration:none;
   padding:8px 13px;border-radius:6px;transition:color .15s,background .15s;
 }
-.lp-links a.lp-link:hover{color:#eef2f8;background:var(--lp-surf-2)}
+.lp-links a.lp-link:hover{color:var(--lp-head);background:var(--lp-surf-2)}
 
 /* ─── BUTTONS ─── */
 /* Plain flat rectangles. No arrow block, no inner highlight — the fill
@@ -76,8 +84,10 @@ body.landing{
 }
 .lp-btn-accent{background:var(--lp-acc);color:var(--lp-ink);border-color:var(--lp-acc)}
 .lp-btn-accent:hover{background:var(--lp-acc-dk);border-color:var(--lp-acc-dk)}
-.lp-btn-ghost{background:rgba(255,255,255,.06);color:#eef2f8;border-color:var(--lp-line-lit)}
-.lp-btn-ghost:hover{background:rgba(255,255,255,.1);border-color:#4a5572}
+.lp-btn-ghost{background:#fff;color:var(--lp-head);border-color:var(--lp-line-lit)}
+.lp-btn-ghost:hover{background:var(--lp-surf-2);border-color:#94a3b8}
+.lp-stage .lp-btn-ghost{background:rgba(255,255,255,.06);color:#eef2f8}
+.lp-stage .lp-btn-ghost:hover{background:rgba(255,255,255,.1);border-color:#4a5572}
 .lp-btn-sm{padding:9px 16px;font-size:13px}
 
 /* ─── HERO ─── */
@@ -165,7 +175,7 @@ body.landing{
   border:1px solid rgba(59,130,246,.26);
   font-size:12.5px;color:var(--lp-dim);line-height:1.65;
 }
-.lp-note svg{width:16px;height:16px;flex-shrink:0;margin-top:1px;color:#60a5fa}
+.lp-note svg{width:16px;height:16px;flex-shrink:0;margin-top:1px;color:#2563eb}
 
 /* ─── SECTIONS ─── */
 .lp-band{padding:92px 0}
@@ -175,10 +185,10 @@ body.landing{
 .lp-head-block{max-width:620px;margin:0 0 44px}
 .lp-eyebrow{
   font-size:10.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;
-  color:var(--lp-acc);margin-bottom:14px;
+  color:var(--lp-acc-ink);margin-bottom:14px;
 }
 .lp-band h2{
-  font-size:clamp(24px,3.3vw,36px);font-weight:800;color:#f6f9ff;
+  font-size:clamp(24px,3.3vw,36px);font-weight:800;color:var(--lp-head);
   letter-spacing:-1px;line-height:1.16;
 }
 .lp-head-block p{font-size:15px;color:var(--lp-dim);line-height:1.7;margin-top:16px}
@@ -192,7 +202,7 @@ body.landing{
   border:1px solid var(--lp-line);
   transition:border-color .18s,background .18s;
 }
-.lp-card:hover{background:#1a2030;border-color:var(--lp-line-lit)}
+.lp-card:hover{background:var(--lp-bg);border-color:var(--lp-line-lit);box-shadow:var(--lp-sh)}
 .lp-num{
   position:absolute;top:22px;right:22px;
   font-size:11px;font-weight:700;color:var(--lp-dim-2);letter-spacing:.5px;
@@ -205,10 +215,11 @@ body.landing{
    this card — over the line but with nothing to spare. These are 6.2:1
    and 6.8:1. Written out rather than mixed at runtime: color-mix() is not
    in every browser this has to open in. */
-.lp-c-admin{--c:#f87171}
-.lp-c-sup  {--c:#60a5fa}
-.lp-c-insp {--c:#4ade80}
-.lp-c-work {--c:#fbbf24}
+/* On white, the darker shades the portals use (all over 4.5:1). */
+.lp-c-admin{--c:#b91c1c}
+.lp-c-sup  {--c:#1d4ed8}
+.lp-c-insp {--c:#15803d}
+.lp-c-work {--c:#b45309}
 
 /* ─── ABOUT ─── */
 /* This band carries the second site photograph. Full-bleed rather than a
@@ -226,11 +237,11 @@ body.landing{
 /* .80 measured, not guessed: worst-case contrast behind the body copy is
    6.9:1 and behind the heading 10.4:1, both past WCAG AA, while the site
    still reads as a photograph rather than a dark smudge. */
-#about::before{content:'';position:absolute;inset:0;background:rgba(9,12,17,.80)}
+#about::before{content:'';position:absolute;inset:0;background:rgba(248,250,252,.72)}
 #about > *{position:relative}
-.lp-prose p{font-size:15px;color:#c3cde0;line-height:1.82;margin-bottom:17px;max-width:62ch}
+.lp-prose p{font-size:15px;color:#334155;line-height:1.82;margin-bottom:17px;max-width:62ch}
 .lp-prose p:last-child{margin-bottom:0}
-.lp-prose em{color:#eef2f8;font-style:normal;font-weight:650}
+.lp-prose em{color:var(--lp-head);font-style:normal;font-weight:650}
 
 /* ─── CONTACT ─── */
 /* Heading in its own column, details beside it — the layout this section
@@ -244,9 +255,9 @@ body.landing{
 .lp-cinfo{border-top:1px solid var(--lp-line);padding-top:15px}
 .lp-cinfo h3{
   font-size:10.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
-  color:var(--lp-acc);margin-bottom:9px;
+  color:var(--lp-acc-ink);margin-bottom:9px;
 }
-.lp-cinfo p{font-size:15.5px;color:#eef2f8;font-weight:550;line-height:1.5;word-break:break-word}
+.lp-cinfo p{font-size:15.5px;color:var(--lp-head);font-weight:550;line-height:1.5;word-break:break-word}
 
 /* ─── FOOTER ─── */
 /* No top margin: the contact band above already ends with its own 92px of
@@ -257,7 +268,7 @@ body.landing{
 .lp-foot p{font-size:12px;color:var(--lp-dim-2)}
 .lp-foot nav{display:flex;flex-wrap:wrap;gap:22px}
 .lp-foot nav a{font-size:12px;color:var(--lp-dim-2);text-decoration:none;transition:color .15s}
-.lp-foot nav a:hover{color:#eef2f8}
+.lp-foot nav a:hover{color:var(--lp-head)}
 
 /* ─── RESPONSIVE ─── */
 @media(max-width:980px){

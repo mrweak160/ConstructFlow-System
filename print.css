@@ -61,6 +61,7 @@ body{
 .pr-bar-left span{color:#9ca3af}
 .pr-bar-right{display:flex;align-items:center;gap:10px}
 .pr-check{display:flex;align-items:center;gap:6px;font-size:12.5px;color:#d1d5db;cursor:pointer}
+.pr-check.is-off{opacity:.5;cursor:default}
 .pr-btn{
   padding:8px 16px;border:none;border-radius:7px;cursor:pointer;
   background:#f59e0b;color:#111827;font-weight:600;font-size:13px;
@@ -269,7 +270,7 @@ td.num{white-space:nowrap}
 .shots{display:grid;grid-template-columns:repeat(4,1fr);gap:1.5mm}
 .shots figure{break-inside:avoid}
 .shots img{width:100%;height:26mm;object-fit:cover;border:1px solid var(--ink);display:block}
-.shots figcaption{font-size:var(--t-small);margin-top:.5mm;word-break:break-all}
+.shots figcaption{font-size:var(--t-small);margin-top:.5mm;overflow-wrap:anywhere}
 
 /* ── Signatures ───────────────────────────────────────────── */
 .signs{display:grid;grid-template-columns:1fr 1fr;gap:16mm;margin-top:8mm;break-inside:avoid}
@@ -300,7 +301,7 @@ td.num{white-space:nowrap}
   /* The @page box already is the printable area, so the page fills it and
      fitToPage()'s zoom applies here exactly as it does on screen. */
   .page{width:auto}
-  .sheet + .sheet{break-before:page}   /* the photo page */
+  .sheet + .sheet{break-before:page}   /* the next page: paginate()'s, or the photos */
   .sec{break-inside:auto}          /* let long tables flow across pages */
   .kv,.engine,.doc-status,.signs{break-inside:avoid}
   a{text-decoration:none;color:inherit}
@@ -323,6 +324,15 @@ td.num{white-space:nowrap}
 .sheet.fit-measuring .signs{grid-template-columns:1fr 1fr !important;gap:16mm !important}
 .sheet.fit-measuring .sec{overflow:visible !important}
 .sheet.fit-measuring .sec table{min-width:0 !important}
+
+/* The summaries: A4 across the long side (renderAdmin sets @page to match). */
+@media screen{.sheet.landscape{width:297mm;min-height:210mm}}
+.sheet.landscape.fit-measuring{width:297mm !important}
+
+/* Second lines inside a table cell: address, coordinates, review flag. */
+td .cell-sub{display:block;color:var(--muted);font-size:var(--t-small);white-space:normal}
+td .cell-was{color:var(--muted);font-size:var(--t-small)}
+.table-note{margin-top:1.5mm;color:var(--muted);font-size:var(--t-small)}
 
 /* Narrow screens: the same A4 sheet, scaled down whole by scaleSheet().
    Reflowing it into one column made the phone preview a different

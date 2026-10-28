@@ -6,6 +6,8 @@
 <meta name="theme-color" content="#f59e0b"/>
 <link rel="manifest" href="manifest.json"/>
 <title>ConstructFlow — Inspector Portal</title>
+<!-- Light or dark, before the first paint (the switch is in the settings menu). -->
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('cf_theme')==='dark'?'dark':'light'}catch(e){}</script>
 <link rel="stylesheet" href="style.css"/>
 <link rel="icon" type="image/x-icon" href="logo/favicon.ico"/>
 <link rel="icon" type="image/png" sizes="96x96" href="logo/favicon-96.png"/>
@@ -69,6 +71,7 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
       </nav>
       <div class="sidebar-signout">
         <div style="padding:0 4px;font-size:11px;text-align:center">
+          <a href="guide.html" style="display:inline-block;margin-bottom:6px;color:var(--muted);text-decoration:none">How severity works</a><br>
           <a href="terms.html" style="color:var(--muted);text-decoration:none">Terms</a>
           <span style="color:var(--muted)"> &middot; </span>
           <a href="privacy.html" style="color:var(--muted);text-decoration:none">Privacy</a>
@@ -97,6 +100,7 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
             </button>
             <div class="menu" id="insp-settings-menu">
               <button class="menu-item" onclick="openRoleProfile('insp')">My Profile</button>
+              <button class="menu-item menu-toggle" role="switch" aria-checked="false" data-theme-switch onclick="toggleTheme()"><span>Dark mode</span><span class="switch"></span></button>
               <div style="height:1px;background:var(--border);margin:4px 0"></div>
               <button class="menu-item" style="color:var(--red)" onclick="doSignout()">Sign Out</button>
             </div>
@@ -123,6 +127,21 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
               </div>
             </div>
             <div id="insp-task-list"><div class="empty-state"><p>Loading your assigned tasks...</p></div></div>
+          </div>
+          <!-- Charts (charts.js): severity, status, and the trend per week. -->
+          <div class="chart-grid">
+            <div class="widget">
+              <div class="widget-header"><div><div class="widget-title" id="insp-ch-sev-title">Reports by severity</div><div class="chart-sub" id="insp-ch-sev-sub"></div></div></div>
+              <div id="insp-ch-sev" data-chart></div>
+            </div>
+            <div class="widget">
+              <div class="widget-header"><div><div class="widget-title" id="insp-ch-status-title">Reports by status</div><div class="chart-sub" id="insp-ch-status-sub"></div></div></div>
+              <div id="insp-ch-status" data-chart></div>
+            </div>
+            <div class="widget chart-wide">
+              <div class="widget-header"><div><div class="widget-title" id="insp-ch-trend-title">Reports over time</div><div class="chart-sub" id="insp-ch-trend-sub"></div></div></div>
+              <div id="insp-ch-trend" data-chart></div>
+            </div>
           </div>
           <div class="section-header">
             <div class="section-title">My recent reports</div>
@@ -172,20 +191,20 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
       <button class="btn-close" onclick="closeModal('modal-submit')">×</button>
     </div>
     <div class="modal-body">
-      <div class="form-group"><label>Issue Title <span>*</span></label><input class="form-control" id="s-title" placeholder="e.g. Cracked Foundation – Sector B"/></div>
+      <div class="form-group"><label>Issue Title <span>*</span></label><input class="form-control" id="s-title" maxlength="200" placeholder="e.g. Cracked Foundation – Sector B"/></div>
       <div class="form-group"><label>Description <span>*</span></label><textarea class="form-control" id="s-desc" placeholder="Describe the issue in detail — e.g. hairline crack on the column near the stairwell"></textarea></div>
       <div class="form-row">
         <div class="form-group">
           <label>Location / Site Area <span>*</span></label>
           <div class="gps-row">
-            <input class="form-control" id="s-loc" placeholder="e.g. Building 4, Sector B — or paste 15.48611, 120.59694"/>
+            <input class="form-control" id="s-loc" maxlength="255" placeholder="e.g. Building 4, Sector B — or paste 15.48611, 120.59694"/>
             <button class="btn btn-dark btn-sm" onclick="detectGPS()" style="white-space:nowrap">📍 GPS</button>
           </div>
           <div class="form-hint" id="s-gps-status"></div>
         </div>
         <div class="form-group">
           <label>Address</label>
-          <input class="form-control" id="s-address" placeholder="Province, Municipality, Barangay"/>
+          <input class="form-control" id="s-address" maxlength="255" placeholder="Province, Municipality, Barangay"/>
           <div class="form-hint">Filled automatically from GPS or from coordinates pasted into Location. Click the field to change it.</div>
         </div>
         <div class="form-group"><label>Project Phase <span>*</span></label>
@@ -385,7 +404,7 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
     <div class="modal-body">
       <input type="hidden" id="er-report-id"/>
       <div class="form-group"><label>Issue Title <span style="color:var(--red)">*</span></label>
-        <input class="form-control" id="er-title"/>
+        <input class="form-control" id="er-title" maxlength="200"/>
       </div>
       <div class="form-group"><label>Description <span style="color:var(--red)">*</span></label>
         <textarea class="form-control" id="er-desc"></textarea>
@@ -393,7 +412,7 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
       </div>
       <div class="form-row">
         <div class="form-group"><label>Location / Site Area <span style="color:var(--red)">*</span></label>
-          <input class="form-control" id="er-loc"/>
+          <input class="form-control" id="er-loc" maxlength="255"/>
         </div>
         <div class="form-group"><label>Project Phase <span style="color:var(--red)">*</span></label>
           <select class="form-control" id="er-phase">
@@ -403,7 +422,7 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
         </div>
       </div>
       <div class="form-group" style="margin-bottom:0"><label>Address</label>
-        <input class="form-control" id="er-address" placeholder="Province, Municipality, Barangay"/>
+        <input class="form-control" id="er-address" maxlength="255" placeholder="Province, Municipality, Barangay"/>
         <div class="form-hint">Click the field to change it.</div>
       </div>
     </div>
@@ -414,6 +433,7 @@ html.cf-launching .cf-launch{display:flex !important;position:fixed;inset:0;z-in
   </div>
 </div>
 
+<script src="charts.js"></script>
 <script src="app.js"></script>
 <div class="lightbox-overlay" id="lightbox-overlay" onclick="if(event.target===this) closeLightbox()">
   <button class="lightbox-close" onclick="closeLightbox()">×</button>

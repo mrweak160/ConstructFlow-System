@@ -309,11 +309,13 @@ function routeAfterLogin(data) {
   if (active.length === 1) {
     const page = ROLE_PAGE[active[0].role];
     // A member who's been approved but not yet given a job role has no dashboard to go to yet.
-    window.location.href = page || 'team.html';
+    // Replaces the sign-in page in history, so the phone's back button from
+    // the portal leaves the app rather than bouncing through sign-in.
+    window.location.replace(page || 'team.html');
     return;
   }
   if (active.length > 1) {
-    window.location.href = 'team.html';   // team picker
+    window.location.replace('team.html');   // team picker
     return;
   }
   if (pending.length) {

@@ -98,8 +98,8 @@ function reportStatusBanner(array $r): array {
     return match ($r['status']) {
         'completed' => ['label' => 'RESOLVED',  'tone' => 'done',
                         'note'  => 'The work order raised from this report has been closed.'],
-        'rejected'  => ['label' => 'REJECTED',  'tone' => 'warn',
-                        'note'  => 'This report was rejected and no work order was raised.'],
+        'rejected'  => ['label' => 'CLOSED',    'tone' => 'done',
+                        'note'  => 'The supervisor closed the task without a work order; no repair was needed.'],
         'assigned',
         'in_progress' => ['label' => 'IN PROGRESS', 'tone' => 'warn',
                         'note'  => 'A work order has been raised and the repair is not finished.'],
@@ -220,6 +220,34 @@ function loadPhotos(PDO $db, int $reportId): array {
     return $st->fetchAll();
 }
 
+/**
+ * The work order's own photos: the field worker's updates and the
+ * inspector's site check, oldest first, each captioned with the stage, who
+ * took it and when.
+ */
+function loadWorkPhotos(PDO $db, int $woId): array {
+    $st = $db->prepare(
+        'SELECT p.file_path, p.file_name, fu.status, fu.updated_at, u.name AS by_name
+           FROM FieldWorkPhotos p
+           JOIN FieldWorkUpdates fu ON fu.update_id = p.update_id
+           JOIN Users u            ON u.user_id     = fu.updated_by
+          WHERE fu.wo_id = ?
+          ORDER BY fu.updated_at, p.photo_id'
+    );
+    $st->execute([$woId]);
+    $stage = [
+        'in_progress'        => 'Work update',
+        'on_hold'            => 'Work update',
+        'pending_supervisor' => 'Work done',
+        'pending_closure'    => 'Site check',
+        'rework'             => 'Site check (rework)',
+    ];
+    return array_map(fn($p) => $p + [
+        'caption' => ($stage[$p['status']] ?? 'Work update') . ' · ' . $p['by_name']
+                   . ' · ' . date('M j, Y', strtotime($p['updated_at'])),
+    ], $st->fetchAll());
+}
+
 // ── GET ?action=document ─────────────────────────────────────
 if ($action === 'document') {
     $m      = requireTeam();
@@ -316,7 +344,22 @@ if ($action === 'document') {
     $out['work_order'] = $wo;
     $out['crew']       = $wo     ? loadCrew($db, $teamId, (int)$wo['wo_id'])    : [];
     $out['updates']    = $wo     ? loadUpdates($db, $teamId, (int)$wo['wo_id']) : [];
-    $out['photos']     = $report ? loadPhotos($db, (int)$report['report_id'])   : [];
+    // Every photo of the job, whichever document this is: the report's,
+    // then the work order's own, from the field worker and the inspector's
+    // site check.
+    $out['photos']     = $report
+        ? array_map(fn($p) => $p + ['caption' => 'Inspection report'], loadPhotos($db, (int)$report['report_id']))
+        : [];
+    // A task printout leaves the work order's sections out, not its photos.
+    $photoWoId = $wo ? (int)$wo['wo_id'] : 0;
+    if (!$photoWoId && $report) {
+        $pw = $db->prepare('SELECT wo_id FROM WorkOrders WHERE report_id = ? AND team_id = ?');
+        $pw->execute([(int)$report['report_id'], $teamId]);
+        $photoWoId = (int)($pw->fetchColumn() ?: 0);
+    }
+    if ($photoWoId) {
+        $out['photos'] = array_merge($out['photos'], loadWorkPhotos($db, $photoWoId));
+    }
 
     // An audit trail of who printed what. The table was in the schema from
     // the start and this is the first thing to use it.
@@ -404,9 +447,10 @@ if ($action === 'reports') {
     if (in_array($st, REPORT_STATES, true)) { $where[] = 'r.status = ?'; $args[] = $st; }
 
     $stmt = $db->prepare(
-        'SELECT r.report_id, r.report_code, r.title, r.issue_type, r.severity,
-                r.recommended_severity, r.classification_confidence, r.status,
-                r.submitted_at, r.address_text, r.location_text,
+        'SELECT r.report_id, r.report_code, r.title, r.issue_type, r.phase, r.severity,
+                r.recommended_severity, r.needs_review, r.status, r.d_level, r.c_level,
+                r.submitted_at, r.address_text, r.location_text, r.latitude, r.longitude,
+                (SELECT t.location_text FROM InspectionTasks t WHERE t.task_id = r.task_id) AS task_location,
                 r.submitted_by, u.name AS submitted_by_name,
                 (SELECT wo_code FROM WorkOrders w WHERE w.report_id = r.report_id LIMIT 1) AS wo_code
            FROM InspectionReports r
@@ -463,7 +507,9 @@ if ($action === 'workorders') {
     $stmt = $db->prepare(
         'SELECT w.wo_id, w.wo_code, w.severity, w.status, w.created_at, w.deadline, w.closed_at,
                 w.created_by, w.assigned_to,
-                r.report_code, r.title AS report_title,
+                r.report_code, r.title AS report_title, r.issue_type,
+                r.address_text, r.location_text, r.latitude, r.longitude,
+                (SELECT t.location_text FROM InspectionTasks t WHERE t.task_id = r.task_id) AS task_location,
                 uc.name AS created_by_name, uw.name AS assigned_to_name,
                 (SELECT GROUP_CONCAT(u2.name ORDER BY a2.is_lead DESC, u2.name SEPARATOR 0x1F)
                    FROM WorkOrderAssignees a2 JOIN Users u2 ON a2.user_id = u2.user_id

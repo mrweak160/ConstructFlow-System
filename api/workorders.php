@@ -77,6 +77,9 @@ if ($method === 'POST' && $action === 'create') {
     if (!$reportRow) {
         json_response(false, 'Inspection report not found.', [], 404);
     }
+    if ($reportRow['status'] === 'rejected') {
+        json_response(false, 'This report has been closed, so a work order cannot be created from it.', [], 409);
+    }
 
     // The check the original file described but never performed.
     $dupe = $db->prepare('SELECT wo_code FROM WorkOrders WHERE report_id = ? AND team_id = ? LIMIT 1');
@@ -323,6 +326,10 @@ if ($method === 'POST' && $action === 'update_status') {
     $teamId = (int)$m['team_id'];
     $body   = $_POST ?: getBody();
 
+    if (tooManyPhotos('photos')) {
+        json_response(false, 'You can attach up to ' . MAX_PHOTOS_COUNT . ' photos. Remove some and try again.', [], 400);
+    }
+
     $woId    = (int)($body['wo_id'] ?? 0);
     $status  = in_array($body['status'] ?? '', ['in_progress','on_hold','completed'], true)
                ? $body['status'] : null;
@@ -411,6 +418,9 @@ if ($method === 'POST' && $action === 'verify') {
     $actor  = currentUser();
     $teamId = (int)$m['team_id'];
     $body   = $_POST ?: getBody();   // multipart when the inspector sends photos
+    if (tooManyPhotos('photos')) {
+        json_response(false, 'You can attach up to ' . MAX_PHOTOS_COUNT . ' photos. Remove some and try again.', [], 400);
+    }
 
     $woId     = (int)($body['wo_id'] ?? 0);
     $decision = in_array($body['decision'] ?? '', ['approve','reject'], true)
@@ -684,8 +694,11 @@ if ($method === 'POST' && $action === 'update_details') {
         }
     }
 
-    $db->prepare('UPDATE WorkOrders SET instructions = ?, deadline = ? WHERE wo_id = ? AND team_id = ?')
-       ->execute([$instructions, $deadline ?: null, $woId, $teamId]);
+    $db->prepare('UPDATE WorkOrders
+                     SET deadline_reminder_sent_at = IF(deadline <=> ?, deadline_reminder_sent_at, NULL),
+                         instructions = ?, deadline = ?
+                   WHERE wo_id = ? AND team_id = ?')
+       ->execute([$deadline ?: null, $instructions, $deadline ?: null, $woId, $teamId]);
 
     notifyUsers(woCrewIds($woId), $teamId, "Work order updated: {$w['wo_code']}",
         "{$actor['name']} changed the instructions or deadline of this work order.",
